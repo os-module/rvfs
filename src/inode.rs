@@ -1,3 +1,3 @@
-pub trait InodeOps{
+pub trait InodeOps {
     type Data;
 }

@@ -1,4 +1,4 @@
-use vfs_macro::vtable;
+// use vfs_macro::vtable;
 
 /// Type of superblock keying.
 ///
@@ -19,7 +19,10 @@ pub enum SuperType {
     /// Uses a block device.
     BlockDev,
 }
-#[vtable]
-pub trait SuperBlockOps{
+pub trait SuperBlockOps: Send + Sync {
     type Data;
+    type Context;
+    /// Determines how superblocks for this file system type are keyed.
+    const SUPER_TYPE: SuperType;
+    fn fill_super(&self) -> Self::Context;
 }

@@ -1,3 +1,3 @@
-pub trait FileOps{
+pub trait FileOps {
     type Data;
 }
