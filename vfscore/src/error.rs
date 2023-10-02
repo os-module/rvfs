@@ -21,7 +21,7 @@ pub enum VfsError {
     /// ENOSPC 空间不足
     NoSpace = 28,
     /// EINVAL 无效参数
-    Inval = 22,
+    Invalid = 22,
     /// ENAMETOOLONG 名称太长
     NameTooLong = 36,
     /// ENOSYS 不支持的系统调用
@@ -59,7 +59,7 @@ impl Display for VfsError {
             VfsError::NoSpace => {
                 write!(f, "No space left on device")
             }
-            VfsError::Inval => {
+            VfsError::Invalid => {
                 write!(f, "Invalid argument")
             }
             VfsError::NameTooLong => {
@@ -80,9 +80,10 @@ impl Display for VfsError {
 
 impl Error for VfsError {}
 
-impl Into<i32> for VfsError {
-    fn into(self) -> i32 {
-        self as i32
+
+impl From<VfsError> for i32{
+    fn from(value: VfsError) -> Self {
+        value as i32
     }
 }
 
