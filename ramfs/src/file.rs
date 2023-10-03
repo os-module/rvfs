@@ -1,20 +1,18 @@
+use crate::VfsRawMutex;
+use crate::{KernelProvider, RamFsDirInode, RamFsFileInode, RamFsSuperBlock};
+use alloc::collections::BTreeMap;
+use alloc::string::{String, ToString};
+use alloc::sync::Arc;
+use alloc::sync::Weak;
 use vfscore::dentry::VfsDentry;
 use vfscore::error::VfsError;
 use vfscore::file::{SeekFrom, VfsFile};
 use vfscore::fstype::{MountFlags, VfsMountPoint};
 use vfscore::inode::VfsInode;
-use crate::{KernelProvider, RamFsDirInode, RamFsFileInode, RamFsSuperBlock};
-use vfscore::superblock::VfsSuperBlock;
-use vfscore::{VfsResult};
-use alloc::collections::BTreeMap;
-use alloc::string::{String, ToString};
-use alloc::sync::Arc;
-use alloc::sync::Weak;
-use vfscore::utils::VfsNodeType;
-use crate::VfsRawMutex;
+use vfscore::utils::{VfsDirEntry, VfsNodePerm, VfsNodeType};
+use vfscore::VfsResult;
 
 pub struct RamFsDentry<T: Send + Sync, R: VfsRawMutex> {
-    sb: Weak<RamFsSuperBlock<T, R>>,
     inner: lock_api::Mutex<R, RamFsDentryInner<T, R>>,
 }
 
@@ -26,19 +24,20 @@ struct RamFsDentryInner<T: Send + Sync, R: VfsRawMutex> {
     children: Option<BTreeMap<String, Arc<RamFsDentry<T, R>>>>,
 }
 
-
 impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsDentry<T, R> {
     /// Create the root dentry
     ///
     /// Only call once
     pub fn root(provider: T, sb: &Arc<RamFsSuperBlock<T, R>>) -> Self {
-        sb.inode_count.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
-        let inode_number = sb.inode_index.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+        sb.inode_count
+            .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+        let inode_number = sb
+            .inode_index
+            .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
         let dentry = Self {
-            sb: Arc::downgrade(sb),
             inner: lock_api::Mutex::new(RamFsDentryInner {
                 parent: Weak::new(),
-                inode: Arc::new(RamFsDirInode::<_, R>::new(provider,inode_number)),
+                inode: Arc::new(RamFsDirInode::<_, R>::new(sb,provider, inode_number,VfsNodePerm::from_bits_truncate(0o755))),
                 name: "/".to_string(),
                 mnt: None,
                 children: Some(BTreeMap::new()),
@@ -87,38 +86,35 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsDentry for RamFsD
         Ok(())
     }
 
-    fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
-        let res = self.sb.upgrade().unwrap();
-        Ok(res)
-    }
-
     fn get_inode(&self) -> VfsResult<Arc<dyn VfsInode>> {
         Ok(self.inner.lock().inode.clone())
     }
 
     fn get_vfs_mount(&self) -> Option<VfsMountPoint> {
-        self.inner
-            .lock()
-            .mnt
-            .clone()
+        self.inner.lock().mnt.clone()
     }
 
     fn find(&self, path: &str) -> Option<Arc<dyn VfsDentry>> {
         let inner = self.inner.lock();
         let inode_type = inner.inode.inode_type();
         match inode_type {
-            VfsNodeType::Dir => {
-                inner.children.as_ref().unwrap().get(path)
-                    .map(|item|item.clone() as Arc<dyn VfsDentry>)
-            }
-            _ => None
+            VfsNodeType::Dir => inner
+                .children
+                .as_ref()
+                .unwrap()
+                .get(path)
+                .map(|item| item.clone() as Arc<dyn VfsDentry>),
+            _ => None,
         }
     }
 
-    fn insert(self:Arc<Self>, name:&str, child: Arc<dyn VfsInode>) -> VfsResult<Arc<dyn VfsDentry>> {
+    fn insert(
+        self: Arc<Self>,
+        name: &str,
+        child: Arc<dyn VfsInode>,
+    ) -> VfsResult<Arc<dyn VfsDentry>> {
         let inode_type = child.inode_type();
         let child = Arc::new(RamFsDentry {
-            sb: self.sb.clone(),
             inner: lock_api::Mutex::new(RamFsDentryInner {
                 parent: Arc::downgrade(&self),
                 inode: child,
@@ -126,12 +122,17 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsDentry for RamFsD
                 mnt: None,
                 children: match inode_type {
                     VfsNodeType::Dir => Some(BTreeMap::new()),
-                    _ => None
+                    _ => None,
                 },
             }),
         });
-        self.inner.lock().children.as_mut().unwrap().insert(name.to_string(), child.clone())
-            .map_or(Ok(child),|_|Err(VfsError::FileExist))
+        self.inner
+            .lock()
+            .children
+            .as_mut()
+            .unwrap()
+            .insert(name.to_string(), child.clone())
+            .map_or(Ok(child), |_| Err(VfsError::FileExist))
     }
 }
 
@@ -182,6 +183,20 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsFile for RamFsFil
         match self.dentry.get_inode()?.inode_type() {
             VfsNodeType::File => self.dentry.file_inode().write_at(offset, buf),
             _ => return Err(VfsError::Invalid),
+        }
+    }
+    fn readdir(&self) -> VfsResult<Option<VfsDirEntry>> {
+        let mut  inner = self.inner.lock();
+        match self.dentry.get_inode()?.inode_type() {
+            VfsNodeType::Dir => {
+                let dir_inode = self.dentry.dir_inode();
+                let res = dir_inode.read_dir(inner.offset as usize).map(|entry| {
+                    inner.offset += 1;
+                    entry
+                });
+                Ok(res)
+            }
+            _ => Err(VfsError::Invalid),
         }
     }
 }

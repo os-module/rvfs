@@ -1,3 +1,4 @@
+use alloc::string::String;
 use bitflags::bitflags;
 bitflags! {
     pub struct VfsInodeMode: u32 {
@@ -57,6 +58,7 @@ bitflags! {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum VfsNodeType {
+    Unknown = 0,
     /// FIFO (named pipe)
     Fifo = 0o1,
     /// Character device
@@ -71,6 +73,32 @@ pub enum VfsNodeType {
     SymLink = 0o12,
     /// Socket
     Socket = 0o14,
+}
+
+bitflags::bitflags! {
+    /// Node (file/directory) permission mode.
+    pub struct VfsNodePerm: u16 {
+        /// Owner has read permission.
+        const OWNER_READ = 0o400;
+        /// Owner has write permission.
+        const OWNER_WRITE = 0o200;
+        /// Owner has execute permission.
+        const OWNER_EXEC = 0o100;
+
+        /// Group has read permission.
+        const GROUP_READ = 0o40;
+        /// Group has write permission.
+        const GROUP_WRITE = 0o20;
+        /// Group has execute permission.
+        const GROUP_EXEC = 0o10;
+
+        /// Others have read permission.
+        const OTHER_READ = 0o4;
+        /// Others have write permission.
+        const OTHER_WRITE = 0o2;
+        /// Others have execute permission.
+        const OTHER_EXEC = 0o1;
+    }
 }
 
 impl From<VfsInodeMode> for VfsNodeType {
@@ -115,7 +143,6 @@ impl VfsTimeSpec {
     }
 }
 
-
 #[derive(Debug, Copy, Clone)]
 pub struct VfsFsStat {
     /// 是个 magic number，每个知名的 fs 都各有定义，但显然我们没有
@@ -158,11 +185,24 @@ pub struct FileStat {
     pub st_blksize: u32,
     pub __pad2: u32,
     pub st_blocks: u64,
-    pub st_atime:VfsTimeSpec,
+    pub st_atime: VfsTimeSpec,
     pub st_mtime: VfsTimeSpec,
     pub st_ctime: VfsTimeSpec,
     pub unused: u64,
 } //128
+
+#[derive(Debug,Clone)]
+pub struct VfsDirEntry {
+    /// ino is an inode number
+    pub ino: u64,
+    /// type is the file type
+    pub ty: VfsNodeType,
+    /// filename (null-terminated)
+    pub name: String,
+}
+
+
+
 
 bitflags! {
     /// ppoll 使用，表示对应在文件上等待或者发生过的事件

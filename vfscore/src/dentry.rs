@@ -1,6 +1,5 @@
 use crate::fstype::{MountFlags, VfsMountPoint};
 use crate::inode::VfsInode;
-use crate::superblock::VfsSuperBlock;
 use crate::VfsResult;
 use alloc::string::String;
 use alloc::sync::Arc;
@@ -13,8 +12,6 @@ pub trait VfsDentry: Send + Sync + AnySync {
         sub_fs_root: Arc<dyn VfsDentry>,
         mount_flag: MountFlags,
     ) -> VfsResult<()>;
-    /// Get the super block of this dentry
-    fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>>;
     /// Get the inode of this dentry
     fn get_inode(&self) -> VfsResult<Arc<dyn VfsInode>>;
     /// Get the mount point of this dentry
@@ -28,7 +25,11 @@ pub trait VfsDentry: Send + Sync + AnySync {
     /// The dentry should cache it's children to speed up the lookup
     fn find(&self, path: &str) -> Option<Arc<dyn VfsDentry>>;
     /// Add a child to this dentry and return the dentry of the child
-    fn insert(self:Arc<Self>, name:&str, child: Arc<dyn VfsInode>) -> VfsResult<Arc<dyn VfsDentry>>;
+    fn insert(
+        self: Arc<Self>,
+        name: &str,
+        child: Arc<dyn VfsInode>,
+    ) -> VfsResult<Arc<dyn VfsDentry>>;
 }
 
 downcast_sync!(dyn VfsDentry);

@@ -1,13 +1,12 @@
 #![feature(trait_alias)]
 #![cfg_attr(not(test), no_std)]
 extern crate alloc;
+use alloc::sync::Arc;
 use vfscore::dentry::VfsDentry;
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::fstype::{FileSystemFlags, VfsFsType};
 use vfscore::VfsResult;
-use alloc::sync::Arc;
-
 
 pub trait VfsRawMutex = lock_api::RawMutex + Send + Sync;
 #[derive(Default, Debug)]

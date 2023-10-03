@@ -43,7 +43,6 @@ pub trait VfsFsType: Send + Sync + AnySync {
     ) -> VfsResult<Arc<dyn VfsDentry>> {
         Err(VfsError::NoSys)
     }
-
     /// unmount a filesystem
     fn kill_sb(&self, _sb: Arc<dyn VfsSuperBlock>) -> VfsResult<()> {
         Err(VfsError::NoSys)
@@ -59,9 +58,8 @@ pub trait VfsFsType: Send + Sync + AnySync {
 downcast_sync!(dyn VfsFsType);
 
 #[derive(Clone)]
-pub struct VfsMountPoint{
+pub struct VfsMountPoint {
     pub root: Arc<dyn VfsDentry>,
     pub mount_point: Weak<dyn VfsDentry>,
     pub mnt_flags: MountFlags,
 }
-

@@ -1,8 +1,8 @@
 use crate::error::VfsError;
+use crate::utils::{PollEvents, VfsDirEntry};
 use crate::VfsResult;
 use alloc::sync::Arc;
 use downcast::{downcast_sync, AnySync};
-use crate::utils::PollEvents;
 
 /// Enumeration of possible methods to seek within an I/O object.
 ///
@@ -34,6 +34,13 @@ pub trait VfsFile: Send + Sync + AnySync {
         Err(VfsError::NoSys)
     }
     fn write_at(&self, _offset: u64, _buf: &[u8]) -> VfsResult<usize> {
+        Err(VfsError::NoSys)
+    }
+    /// Read directory entries. This is called by the getdents(2) system call.
+    /// 
+    /// For every call, this function will return an valid entry, or an error. If
+    /// it read to the end of directory, it will return an empty entry.
+    fn readdir(&self) -> VfsResult<Option<VfsDirEntry>> {
         Err(VfsError::NoSys)
     }
     fn poll(&self, _event: PollEvents) -> VfsResult<PollEvents> {

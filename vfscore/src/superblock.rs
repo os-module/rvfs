@@ -1,10 +1,10 @@
 use crate::dentry::VfsDentry;
 use crate::error::VfsError;
 use crate::fstype::VfsFsType;
+use crate::utils::VfsFsStat;
 use crate::VfsResult;
 use alloc::sync::Arc;
 use downcast::{downcast_sync, AnySync};
-use crate::utils::VfsFsStat;
 
 /// Type of superblock keying.
 pub enum SuperType {

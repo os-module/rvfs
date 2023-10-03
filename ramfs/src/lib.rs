@@ -5,22 +5,22 @@ mod file;
 mod inode;
 
 use alloc::collections::BTreeMap;
-use vfscore::fstype::{FileSystemFlags, MountFlags, VfsFsType};
-use vfscore::superblock::{SuperType, VfsSuperBlock};
 use alloc::sync::Arc;
 use alloc::sync::Weak;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicU64, AtomicUsize};
+pub use file::{RamFsDentry, RamFsFile};
+pub use inode::*;
 use lock_api::RawMutex;
 use log::info;
 use vfscore::dentry::VfsDentry;
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
-use vfscore::{VfsResult};
-pub use file::{RamFsDentry, RamFsFile};
-pub use inode::*;
+use vfscore::fstype::{FileSystemFlags, MountFlags, VfsFsType};
 use vfscore::inode::VfsInode;
+use vfscore::superblock::{SuperType, VfsSuperBlock};
 use vfscore::utils::{VfsFsStat, VfsTimeSpec};
+use vfscore::VfsResult;
 pub trait VfsRawMutex = RawMutex + Send + Sync;
 pub trait KernelProvider: Send + Sync + Clone {
     fn current_time(&self) -> VfsTimeSpec;
@@ -28,7 +28,7 @@ pub trait KernelProvider: Send + Sync + Clone {
 
 pub struct RamFs<T: Send + Sync, R: VfsRawMutex> {
     provider: T,
-    sbs:lock_api::Mutex<R,Vec<Arc<RamFsSuperBlock<T,R>>>>,
+    sbs: lock_api::Mutex<R, Vec<Arc<RamFsSuperBlock<T, R>>>>,
 }
 
 impl<T: KernelProvider, R: VfsRawMutex + 'static> RamFs<T, R> {
@@ -43,9 +43,9 @@ impl<T: KernelProvider, R: VfsRawMutex + 'static> RamFs<T, R> {
 pub struct RamFsSuperBlock<T: Send + Sync, R: VfsRawMutex> {
     fs_type: Weak<RamFs<T, R>>,
     root: lock_api::Mutex<R, Option<Arc<RamFsDentry<T, R>>>>,
-    inode_index:AtomicU64,
-    inode_count:AtomicUsize,
-    inode_cache:lock_api::Mutex<R,BTreeMap<u64,Arc<dyn VfsInode>>>,
+    inode_index: AtomicU64,
+    inode_count: AtomicUsize,
+    inode_cache: lock_api::Mutex<R, BTreeMap<u64, Arc<dyn VfsInode>>>,
 }
 
 impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsSuperBlock<T, R> {
@@ -62,27 +62,29 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsSuperBlock<T, R
         *sb.root.lock() = Some(root.clone());
         sb
     }
-    pub fn insert_inode(&self,inode_number:u64,inode:Arc<dyn VfsInode>) {
+    pub fn insert_inode(&self, inode_number: u64, inode: Arc<dyn VfsInode>) {
         let mut cache = self.inode_cache.lock();
-        cache.insert(inode_number,inode);
+        cache.insert(inode_number, inode);
     }
-    pub fn remove_inode(&self,inode_number:u64) {
+    pub fn remove_inode(&self, inode_number: u64) {
         let mut cache = self.inode_cache.lock();
         cache.remove(&inode_number);
     }
-    pub fn get_inode(&self,inode_number:u64) -> Option<Arc<dyn VfsInode>> {
+    pub fn get_inode(&self, inode_number: u64) -> Option<Arc<dyn VfsInode>> {
         let cache = self.inode_cache.lock();
-        cache.get(&inode_number).map(|inode|inode.clone())
+        cache.get(&inode_number).map(|inode| inode.clone())
     }
 }
 
-impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsSuperBlock for RamFsSuperBlock<T, R> {
+impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsSuperBlock
+    for RamFsSuperBlock<T, R>
+{
     fn sync_fs(&self, _wait: bool) -> VfsResult<()> {
         Ok(())
     }
 
     fn stat_fs(&self) -> VfsResult<VfsFsStat> {
-        Ok(VfsFsStat{
+        Ok(VfsFsStat {
             f_type: 0,
             f_bsize: 4096,
             f_blocks: 0,
@@ -90,11 +92,11 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsSuperBlock for Ra
             f_bavail: 0,
             f_files: 0,
             f_ffree: 0,
-            f_fsid: [0,0],
+            f_fsid: [0, 0],
             f_namelen: 0,
             f_frsize: 0,
             f_flags: 0,
-            f_spare: [0;4],
+            f_spare: [0; 4],
         })
     }
 

@@ -1,40 +1,42 @@
-use vfscore::dentry::VfsDentry;
-use vfscore::inode::{InodeAttr, VfsInode};
-use crate::{KernelProvider, RamFsSuperBlock};
-use vfscore::{VfsResult};
-use alloc::collections::BTreeMap;
-use alloc::string::{String, ToString};
-use alloc::sync::Arc;
-use alloc::vec::Vec;
-use vfscore::error::VfsError;
-use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{FileStat, VfsInodeMode, VfsNodeType, VfsTimeSpec};
 use crate::VfsRawMutex;
-pub struct RamFsFileInode<T, R: VfsRawMutex> {
-    provider: T,
-    inode_number:u64,
-    inner: lock_api::Mutex<R, RamFsFileInodeInner>,
+use crate::{KernelProvider, RamFsSuperBlock};
 
+use alloc::string::{String, ToString};
+use alloc::sync::{Arc, Weak};
+use alloc::vec::Vec;
+use vfscore::dentry::VfsDentry;
+use vfscore::error::VfsError;
+use vfscore::inode::{InodeAttr, VfsInode};
+use vfscore::superblock::VfsSuperBlock;
+use vfscore::utils::{FileStat, VfsDirEntry, VfsNodePerm, VfsNodeType, VfsTimeSpec};
+use vfscore::VfsResult;
+pub struct RamFsFileInode<T:Send+Sync, R: VfsRawMutex> {
+    sb: Weak<RamFsSuperBlock<T, R>>,
+    provider: T,
+    inode_number: u64,
+    inner: lock_api::Mutex<R, RamFsFileInodeInner>,
 }
 struct RamFsFileInodeInner {
     data: Vec<u8>,
     atime: VfsTimeSpec,
     mtime: VfsTimeSpec,
     ctime: VfsTimeSpec,
+    perm: VfsNodePerm,
 }
 
-pub struct RamFsDirInode<T, R: VfsRawMutex> {
+pub struct RamFsDirInode<T:Send+Sync, R: VfsRawMutex> {
+    sb: Weak<RamFsSuperBlock<T, R>>,
     provider: T,
-    inode_number:u64,
-    children: lock_api::Mutex<R,BTreeMap<String, u64>>,
+    inode_number: u64,
+    children: lock_api::Mutex<R, Vec<(String, u64)>>,
+    perm:lock_api::Mutex<R, VfsNodePerm>,
 }
-
-
 
 impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsFileInode<T, R> {
-    pub fn new(provider: T,inode_number:u64) -> Self {
+    pub fn new(sb:&Arc<RamFsSuperBlock<T,R>>,provider: T, inode_number: u64, perm:VfsNodePerm) -> Self {
         let time = provider.current_time();
         Self {
+            sb:Arc::downgrade(sb),
             provider,
             inode_number,
             inner: lock_api::Mutex::new(RamFsFileInodeInner {
@@ -42,6 +44,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsFileInode<T, R>
                 atime: time,
                 mtime: time,
                 ctime: time,
+                perm,
             }),
         }
     }
@@ -72,41 +75,82 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsFileInode<T, R>
 }
 
 impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsDirInode<T, R> {
-    pub fn new(provider: T,inode_number:u64) -> Self {
+    pub fn new(sb:&Arc<RamFsSuperBlock<T,R>>,provider: T, inode_number: u64,perm:VfsNodePerm) -> Self {
         Self {
+            sb: Arc::downgrade(sb),
             provider,
             inode_number,
-            children: lock_api::Mutex::new(BTreeMap::new()),
+            children: lock_api::Mutex::new(Vec::new()),
+            perm:lock_api::Mutex::new(perm),
         }
+    }
+
+    pub fn read_dir(&self,start:usize)->Option<VfsDirEntry>{
+        let ramfs_sb = self.sb.upgrade().unwrap();
+        let children = self.children.lock();
+        children.iter().skip(start).next().map(|(name,inode_number)|{
+            let inode = ramfs_sb.get_inode(*inode_number).unwrap();
+            VfsDirEntry{
+                ino: *inode_number,
+                ty: inode.inode_type(),
+                name: name.clone(),
+            }
+        })
     }
 }
 
 impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDirInode<T, R> {
-    fn create(&self,name: &str,_mode: VfsInodeMode,sb:Arc<dyn VfsSuperBlock>) -> VfsResult<Arc<dyn VfsInode>> {
-        let sb = sb.downcast_arc::<RamFsSuperBlock<T, R>>().unwrap();
-        let inode_number = sb.inode_index.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
-        let inode = Arc::new(RamFsFileInode::<_,R>::new(self.provider.clone(),inode_number));
+    fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
+        let res = self.sb.upgrade().unwrap();
+        Ok(res)
+    }
+
+    fn create(
+        &self,
+        name: &str,
+        ty: VfsNodeType,
+        perm: VfsNodePerm,
+        _rdev: Option<u32>,
+    ) -> VfsResult<Arc<dyn VfsInode>> {
+        let sb = self.get_super_block()?.downcast_arc::<RamFsSuperBlock<T, R>>().unwrap();
+        let inode_number = sb
+            .inode_index
+            .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+
+        let inode:Arc<dyn VfsInode>  = match ty {
+            VfsNodeType::File =>{
+                Arc::new(RamFsFileInode::<_, R>::new(&sb,self.provider.clone(), inode_number,perm))
+            }
+            VfsNodeType::Dir =>{
+                Arc::new(RamFsDirInode::<_, R>::new(&sb,self.provider.clone(), inode_number,perm))
+            }
+            _ => {
+                return Err(VfsError::Invalid);
+            }
+        };
         sb.insert_inode(inode_number, inode.clone());
-        self.children.lock().insert(name.to_string(), inode_number);
+        self.children.lock().push((name.to_string(), inode_number));
         Ok(inode)
     }
     fn symlink(&self, _name: &str, _syn_name: &str) -> VfsResult<Arc<dyn VfsDentry>> {
         todo!()
     }
-    fn lookup(&self, name: &str,sb:Arc<dyn VfsSuperBlock>) -> VfsResult<Option<Arc<dyn VfsInode>>> {
-        let ramfs_sb = sb.downcast_arc::<RamFsSuperBlock<T, R>>().unwrap();
-        let res = self.children.lock().iter().find(|(item_name,_item)|item_name.as_str()==name)
-            .map(|(_,&inode_number)|{
-               ramfs_sb.get_inode(inode_number)
-            });
+    fn lookup(
+        &self,
+        name: &str,
+    ) -> VfsResult<Option<Arc<dyn VfsInode>>> {
+        let ramfs_sb = self.sb.upgrade().unwrap();
+        let res = self
+            .children
+            .lock()
+            .iter()
+            .find(|(item_name, _item)| item_name.as_str() == name)
+            .map(|(_, inode_number)| ramfs_sb.get_inode(*inode_number));
         if let Some(res) = res {
             Ok(res)
         } else {
             Ok(None)
         }
-    }
-    fn mkdir(&self, _name: &str, _mode: u32) -> VfsResult<Arc<dyn VfsDentry>> {
-        todo!()
     }
     fn rmdir(&self, _target: Arc<dyn VfsDentry>) -> VfsResult<()> {
         todo!()
@@ -115,7 +159,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
         todo!()
     }
     fn get_attr(&self, _target: Arc<dyn VfsDentry>) -> VfsResult<FileStat> {
-        Ok(FileStat{
+        Ok(FileStat {
             st_dev: 0,
             st_ino: self.inode_number,
             st_mode: 0,
@@ -124,14 +168,14 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
             st_gid: 0,
             st_rdev: 0,
             __pad: 0,
-            st_size:4096,
+            st_size: 4096,
             st_blksize: 4096,
             __pad2: 0,
             st_blocks: 0,
-            st_atime: VfsTimeSpec::new(0,0),
-            st_mtime: VfsTimeSpec::new(0,0),
+            st_atime: VfsTimeSpec::new(0, 0),
+            st_mtime: VfsTimeSpec::new(0, 0),
             unused: 0,
-            st_ctime: VfsTimeSpec::new(0,0),
+            st_ctime: VfsTimeSpec::new(0, 0),
         })
     }
     fn list_xattr(&self, _target: Arc<dyn VfsDentry>) -> VfsResult<Vec<String>> {
@@ -143,22 +187,10 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
     }
 }
 
-
-impl <T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsFileInode<T,R>{
-    fn create(&self, _name: &str, _mode: VfsInodeMode, _sb: Arc<dyn VfsSuperBlock>) -> VfsResult<Arc<dyn VfsInode>> {
-        Err(VfsError::NoSys)
-    }
-
-    fn lookup(&self, _name: &str, _sb: Arc<dyn VfsSuperBlock>) -> VfsResult<Option<Arc<dyn VfsInode>>> {
-        Err(VfsError::NoSys)
-    }
-
-    fn mkdir(&self, _name: &str, _mode: u32) -> VfsResult<Arc<dyn VfsDentry>> {
-        Err(VfsError::NoSys)
-    }
-
-    fn rmdir(&self, _target: Arc<dyn VfsDentry>) -> VfsResult<()> {
-        Err(VfsError::NoSys)
+impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsFileInode<T, R> {
+    fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
+        let res = self.sb.upgrade().unwrap();
+        Ok(res)
     }
 
     fn set_attr(&self, _target: Arc<dyn VfsDentry>, _attr: InodeAttr) -> VfsResult<()> {
@@ -169,7 +201,7 @@ impl <T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsF
 
     fn get_attr(&self, _target: Arc<dyn VfsDentry>) -> VfsResult<FileStat> {
         let inner = self.inner.lock();
-        Ok(FileStat{
+        Ok(FileStat {
             st_dev: 0,
             st_ino: self.inode_number,
             st_mode: 0,
@@ -178,7 +210,7 @@ impl <T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsF
             st_gid: 0,
             st_rdev: 0,
             __pad: 0,
-            st_size:4096,
+            st_size: 4096,
             st_blksize: 4096,
             __pad2: 0,
             st_blocks: 0,

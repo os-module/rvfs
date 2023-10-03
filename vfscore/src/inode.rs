@@ -1,12 +1,12 @@
 use crate::dentry::VfsDentry;
 use crate::error::VfsError;
-use crate::{ VfsResult};
+use crate::superblock::VfsSuperBlock;
+use crate::utils::{FileStat, VfsNodePerm, VfsNodeType};
+use crate::VfsResult;
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use downcast::{downcast_sync, AnySync};
-use crate::superblock::VfsSuperBlock;
-use crate::utils::{FileStat, VfsInodeMode, VfsNodeType};
 
 pub struct InodeAttr {
     /// File mode.
@@ -23,15 +23,19 @@ pub struct InodeAttr {
 }
 
 pub trait VfsInode: Send + Sync + AnySync {
+    /// Get the super block of this dentry
+    fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>>;
+
     /// Create a new node with the given `path` in the directory
-    ///
-    /// Return [`Ok(Arc<dyn DentryOps>)`](Ok) if it already exists.
     fn create(
         &self,
-        name: &str,
-        mode: VfsInodeMode,
-        sb:Arc<dyn VfsSuperBlock>
-    ) -> VfsResult<Arc<dyn VfsInode>>;
+        _name: &str,
+        _ty: VfsNodeType,
+        _perm: VfsNodePerm,
+        _rdev: Option<u32>,
+    ) -> VfsResult<Arc<dyn VfsInode>> {
+        Err(VfsError::NoSys)
+    }
 
     /// Create a new hard link to the src dentry
     fn link(&self, _name: &str, _src: Arc<dyn VfsInode>) -> VfsResult<Arc<dyn VfsInode>> {
@@ -45,16 +49,15 @@ pub trait VfsInode: Send + Sync + AnySync {
     fn symlink(&self, _name: &str, _syn_name: &str) -> VfsResult<Arc<dyn VfsDentry>> {
         Err(VfsError::NoSys)
     }
-    fn lookup(&self, name: &str, sb:Arc<dyn VfsSuperBlock>) -> VfsResult<Option<Arc<dyn VfsInode>>>;
-
-    fn mkdir(&self, name: &str, mode: u32) -> VfsResult<Arc<dyn VfsDentry>> ;
-
-    fn rmdir(&self, target: Arc<dyn VfsDentry>) -> VfsResult<()>;
-
-    fn mknod(&self, _name: &str, _mode: u32, _dev: u32) -> VfsResult<Arc<dyn VfsDentry>> {
+    fn lookup(
+        &self,
+        _name: &str,
+    ) -> VfsResult<Option<Arc<dyn VfsInode>>> {
         Err(VfsError::NoSys)
     }
-
+    fn rmdir(&self, _target: Arc<dyn VfsDentry>) -> VfsResult<()> {
+        Err(VfsError::NoSys)
+    }
     fn get_link(&self, _target: Arc<dyn VfsDentry>) -> VfsResult<String> {
         Err(VfsError::NoSys)
     }

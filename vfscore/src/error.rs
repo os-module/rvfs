@@ -80,8 +80,7 @@ impl Display for VfsError {
 
 impl Error for VfsError {}
 
-
-impl From<VfsError> for i32{
+impl From<VfsError> for i32 {
     fn from(value: VfsError) -> Self {
         value as i32
     }
