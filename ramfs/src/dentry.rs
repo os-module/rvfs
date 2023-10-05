@@ -1,15 +1,14 @@
 use crate::VfsRawMutex;
-use crate::{KernelProvider, RamFsDirInode, RamFsFileInode, RamFsSuperBlock};
+use crate::{KernelProvider, RamFsDirInode, RamFsSuperBlock};
 use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
 use alloc::sync::Arc;
 use alloc::sync::Weak;
 use vfscore::dentry::VfsDentry;
 use vfscore::error::VfsError;
-use vfscore::file::{SeekFrom, VfsFile};
 use vfscore::fstype::{MountFlags, VfsMountPoint};
 use vfscore::inode::VfsInode;
-use vfscore::utils::{VfsDirEntry, VfsNodePerm, VfsNodeType};
+use vfscore::utils::{VfsNodePerm, VfsNodeType};
 use vfscore::VfsResult;
 
 pub struct RamFsDentry<T: Send + Sync, R: VfsRawMutex> {
@@ -37,30 +36,18 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsDentry<T, R> {
         let dentry = Self {
             inner: lock_api::Mutex::new(RamFsDentryInner {
                 parent: Weak::new(),
-                inode: Arc::new(RamFsDirInode::<_, R>::new(sb,provider, inode_number,VfsNodePerm::from_bits_truncate(0o755))),
+                inode: Arc::new(RamFsDirInode::<_, R>::new(
+                    sb,
+                    provider,
+                    inode_number,
+                    VfsNodePerm::from_bits_truncate(0o755),
+                )),
                 name: "/".to_string(),
                 mnt: None,
                 children: Some(BTreeMap::new()),
             }),
         };
         dentry
-    }
-    pub fn file_inode(&self) -> Arc<RamFsFileInode<T, R>> {
-        self.inner
-            .lock()
-            .inode
-            .clone()
-            .downcast_arc::<RamFsFileInode<T, R>>()
-            .unwrap()
-    }
-
-    pub fn dir_inode(&self) -> Arc<RamFsDirInode<T, R>> {
-        self.inner
-            .lock()
-            .inode
-            .clone()
-            .downcast_arc::<RamFsDirInode<T, R>>()
-            .unwrap()
     }
 }
 
@@ -86,7 +73,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsDentry for RamFsD
         Ok(())
     }
 
-    fn get_inode(&self) -> VfsResult<Arc<dyn VfsInode>> {
+    fn inode(&self) -> VfsResult<Arc<dyn VfsInode>> {
         Ok(self.inner.lock().inode.clone())
     }
 
@@ -134,69 +121,14 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsDentry for RamFsD
             .insert(name.to_string(), child.clone())
             .map_or(Ok(child), |_| Err(VfsError::FileExist))
     }
-}
 
-pub struct RamFsFile<T: Send + Sync, R: VfsRawMutex> {
-    dentry: Arc<RamFsDentry<T, R>>,
-    inner: lock_api::Mutex<R, RamFsFileInner>,
-}
-
-struct RamFsFileInner {
-    offset: u64,
-}
-
-impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsFile<T, R> {
-    pub fn new(dentry: Arc<RamFsDentry<T, R>>) -> Self {
-        Self {
-            dentry,
-            inner: lock_api::Mutex::new(RamFsFileInner { offset: 0 }),
-        }
-    }
-}
-
-impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsFile for RamFsFile<T, R> {
-    fn seek(&self, pos: SeekFrom) -> VfsResult<u64> {
-        let seek = || {
-            let mut inner = self.inner.lock();
-            let size = self.dentry.file_inode().size();
-            let new_offset = match pos {
-                SeekFrom::Start(pos) => Some(pos),
-                SeekFrom::Current(off) => inner.offset.checked_add_signed(off),
-                SeekFrom::End(off) => size.checked_add_signed(off),
-            }
-            .ok_or_else(|| VfsError::Invalid)?;
-            inner.offset = new_offset;
-            Ok(inner.offset)
-        };
-        match self.dentry.get_inode()?.inode_type() {
-            VfsNodeType::File => seek(),
-            _ => return Err(VfsError::Invalid),
-        }
-    }
-    fn read_at(&self, offset: u64, buf: &mut [u8]) -> VfsResult<usize> {
-        match self.dentry.get_inode()?.inode_type() {
-            VfsNodeType::File => self.dentry.file_inode().read_at(offset, buf),
-            _ => return Err(VfsError::Invalid),
-        }
-    }
-    fn write_at(&self, offset: u64, buf: &[u8]) -> VfsResult<usize> {
-        match self.dentry.get_inode()?.inode_type() {
-            VfsNodeType::File => self.dentry.file_inode().write_at(offset, buf),
-            _ => return Err(VfsError::Invalid),
-        }
-    }
-    fn readdir(&self) -> VfsResult<Option<VfsDirEntry>> {
-        let mut  inner = self.inner.lock();
-        match self.dentry.get_inode()?.inode_type() {
-            VfsNodeType::Dir => {
-                let dir_inode = self.dentry.dir_inode();
-                let res = dir_inode.read_dir(inner.offset as usize).map(|entry| {
-                    inner.offset += 1;
-                    entry
-                });
-                Ok(res)
-            }
-            _ => Err(VfsError::Invalid),
-        }
+    fn remove(&self, name: &str) -> Option<Arc<dyn VfsDentry>> {
+        let mut inner = self.inner.lock();
+        inner
+            .children
+            .as_mut()
+            .unwrap()
+            .remove(name)
+            .map(|item| item as Arc<dyn VfsDentry>)
     }
 }

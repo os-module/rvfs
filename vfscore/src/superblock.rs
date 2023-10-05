@@ -1,5 +1,4 @@
 use crate::dentry::VfsDentry;
-use crate::error::VfsError;
 use crate::fstype::VfsFsType;
 use crate::utils::VfsFsStat;
 use crate::VfsResult;
@@ -25,7 +24,7 @@ pub trait VfsSuperBlock: Send + Sync + AnySync {
     ///
     /// The second parameter indicates whether the method should wait until the write out has been completed. Optional.
     fn sync_fs(&self, _wait: bool) -> VfsResult<()> {
-        Err(VfsError::NoSys)
+        Ok(())
     }
     /// called when the VFS needs to get filesystem statistics.
     ///
@@ -36,7 +35,7 @@ pub trait VfsSuperBlock: Send + Sync + AnySync {
     fn super_type(&self) -> SuperType;
 
     /// Get the fs type of this super block
-    fn get_fs_type(&self) -> Arc<dyn VfsFsType>;
+    fn fs_type(&self) -> Arc<dyn VfsFsType>;
 
     /// Get the root dentry of this super block
     fn root_dentry(&self) -> VfsResult<Arc<dyn VfsDentry>>;

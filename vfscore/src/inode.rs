@@ -1,7 +1,7 @@
-use crate::dentry::VfsDentry;
 use crate::error::VfsError;
+use crate::file::VfsFile;
 use crate::superblock::VfsSuperBlock;
-use crate::utils::{FileStat, VfsNodePerm, VfsNodeType};
+use crate::utils::{FileStat, VfsNodePerm, VfsNodeType, VfsTimeSpec};
 use crate::VfsResult;
 use alloc::string::String;
 use alloc::sync::Arc;
@@ -17,12 +17,12 @@ pub struct InodeAttr {
     ///
     /// For truncate
     pub size: u64,
-    pub atime: u64,
-    pub mtime: u64,
-    pub ctime: u64,
+    pub atime: VfsTimeSpec,
+    pub mtime: VfsTimeSpec,
+    pub ctime: VfsTimeSpec,
 }
 
-pub trait VfsInode: Send + Sync + AnySync {
+pub trait VfsInode: AnySync + VfsFile {
     /// Get the super block of this dentry
     fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>>;
 
@@ -42,37 +42,34 @@ pub trait VfsInode: Send + Sync + AnySync {
         Err(VfsError::NoSys)
     }
     /// Remove hard link of file `name` from dir directory
-    fn unlink(&self, _target: Arc<dyn VfsDentry>) -> VfsResult<()> {
+    fn unlink(&self, _name: &str) -> VfsResult<()> {
         Err(VfsError::NoSys)
     }
     /// Create a new symbolic link to the \[syn_name] file
-    fn symlink(&self, _name: &str, _syn_name: &str) -> VfsResult<Arc<dyn VfsDentry>> {
+    fn symlink(&self, _name: &str, _sy_name: &str) -> VfsResult<Arc<dyn VfsInode>> {
         Err(VfsError::NoSys)
     }
-    fn lookup(
-        &self,
-        _name: &str,
-    ) -> VfsResult<Option<Arc<dyn VfsInode>>> {
+    fn lookup(&self, _name: &str) -> VfsResult<Option<Arc<dyn VfsInode>>> {
         Err(VfsError::NoSys)
     }
-    fn rmdir(&self, _target: Arc<dyn VfsDentry>) -> VfsResult<()> {
+    fn rmdir(&self, _name: &str) -> VfsResult<()> {
         Err(VfsError::NoSys)
     }
-    fn get_link(&self, _target: Arc<dyn VfsDentry>) -> VfsResult<String> {
+    fn readlink(&self, _buf: &mut [u8]) -> VfsResult<usize> {
         Err(VfsError::NoSys)
     }
     /// Set the attributes of the node.
     ///
     ///  This method is called by chmod(2) and related system calls.
-    fn set_attr(&self, target: Arc<dyn VfsDentry>, attr: InodeAttr) -> VfsResult<()>;
+    fn set_attr(&self, attr: InodeAttr) -> VfsResult<()>;
     /// Get the attributes of the node.
     ///
     /// This method is called by stat(2) and related system calls.
-    fn get_attr(&self, target: Arc<dyn VfsDentry>) -> VfsResult<FileStat>;
+    fn get_attr(&self) -> VfsResult<FileStat>;
     /// Called by the VFS to list all extended attributes for a given file.
     ///
     /// This method is called by the listxattr(2) system call.
-    fn list_xattr(&self, _target: Arc<dyn VfsDentry>) -> VfsResult<Vec<String>> {
+    fn list_xattr(&self) -> VfsResult<Vec<String>> {
         Err(VfsError::NoSys)
     }
     fn inode_type(&self) -> VfsNodeType;

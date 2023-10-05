@@ -4,6 +4,7 @@ use crate::VfsResult;
 use alloc::string::String;
 use alloc::sync::Arc;
 use downcast::{downcast_sync, AnySync};
+
 pub trait VfsDentry: Send + Sync + AnySync {
     fn name(&self) -> String;
     /// Make this dentry to  a mount point
@@ -13,7 +14,7 @@ pub trait VfsDentry: Send + Sync + AnySync {
         mount_flag: MountFlags,
     ) -> VfsResult<()>;
     /// Get the inode of this dentry
-    fn get_inode(&self) -> VfsResult<Arc<dyn VfsInode>>;
+    fn inode(&self) -> VfsResult<Arc<dyn VfsInode>>;
     /// Get the mount point of this dentry
     fn get_vfs_mount(&self) -> Option<VfsMountPoint>;
     /// Whether this dentry is a mount point
@@ -30,6 +31,7 @@ pub trait VfsDentry: Send + Sync + AnySync {
         name: &str,
         child: Arc<dyn VfsInode>,
     ) -> VfsResult<Arc<dyn VfsDentry>>;
+    fn remove(&self, name: &str) -> Option<Arc<dyn VfsDentry>>;
 }
 
 downcast_sync!(dyn VfsDentry);

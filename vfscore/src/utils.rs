@@ -191,7 +191,7 @@ pub struct FileStat {
     pub unused: u64,
 } //128
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct VfsDirEntry {
     /// ino is an inode number
     pub ino: u64,
@@ -200,9 +200,6 @@ pub struct VfsDirEntry {
     /// filename (null-terminated)
     pub name: String,
 }
-
-
-
 
 bitflags! {
     /// ppoll 使用，表示对应在文件上等待或者发生过的事件

@@ -1,6 +1,4 @@
 use crate::dentry::VfsDentry;
-use crate::error::VfsError;
-use crate::file::VfsFile;
 use crate::superblock::VfsSuperBlock;
 use crate::VfsResult;
 use alloc::sync::{Arc, Weak};
@@ -37,22 +35,16 @@ pub trait VfsFsType: Send + Sync + AnySync {
     /// the method to call when a new instance of this filesystem should be mounted
     fn mount(
         self: Arc<Self>,
-        _flags: MountFlags,
-        _dev_name: &str,
-        _data: &[u8],
-    ) -> VfsResult<Arc<dyn VfsDentry>> {
-        Err(VfsError::NoSys)
-    }
+        flags: MountFlags,
+        dev_name: &str,
+        data: &[u8],
+    ) -> VfsResult<Arc<dyn VfsDentry>>;
     /// unmount a filesystem
-    fn kill_sb(&self, _sb: Arc<dyn VfsSuperBlock>) -> VfsResult<()> {
-        Err(VfsError::NoSys)
-    }
+    fn kill_sb(&self, sb: Arc<dyn VfsSuperBlock>) -> VfsResult<()>;
     /// Get the flags of this filesystem
-    fn get_fs_flag(&self) -> FileSystemFlags;
+    fn fs_flag(&self) -> FileSystemFlags;
     /// Get the name of this filesystem
     fn fs_name(&self) -> &'static str;
-    /// Construct a vfs_file object according to the given dentry
-    fn make_vfs_file(&self, dentry: Arc<dyn VfsDentry>) -> VfsResult<Arc<dyn VfsFile>>;
 }
 
 downcast_sync!(dyn VfsFsType);

@@ -1,7 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 #![feature(trait_alias)]
 extern crate alloc;
-mod file;
+mod dentry;
 mod inode;
 
 use alloc::collections::BTreeMap;
@@ -9,13 +9,12 @@ use alloc::sync::Arc;
 use alloc::sync::Weak;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicU64, AtomicUsize};
-pub use file::{RamFsDentry, RamFsFile};
+pub use dentry::RamFsDentry;
 pub use inode::*;
 use lock_api::RawMutex;
 use log::info;
 use vfscore::dentry::VfsDentry;
 use vfscore::error::VfsError;
-use vfscore::file::VfsFile;
 use vfscore::fstype::{FileSystemFlags, MountFlags, VfsFsType};
 use vfscore::inode::VfsInode;
 use vfscore::superblock::{SuperType, VfsSuperBlock};
@@ -104,7 +103,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsSuperBlock
         SuperType::Independent
     }
 
-    fn get_fs_type(&self) -> Arc<dyn VfsFsType> {
+    fn fs_type(&self) -> Arc<dyn VfsFsType> {
         self.fs_type.upgrade().unwrap()
     }
 
@@ -140,16 +139,11 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for RamFs<
             Err(VfsError::Invalid)
         }
     }
-    fn get_fs_flag(&self) -> FileSystemFlags {
+    fn fs_flag(&self) -> FileSystemFlags {
         FileSystemFlags::empty()
     }
 
     fn fs_name(&self) -> &'static str {
         "ramfs"
-    }
-
-    fn make_vfs_file(&self, dentry: Arc<dyn VfsDentry>) -> VfsResult<Arc<dyn VfsFile>> {
-        let dentry = dentry.downcast_arc::<RamFsDentry<T, R>>().unwrap();
-        Ok(Arc::new(RamFsFile::new(dentry)))
     }
 }
