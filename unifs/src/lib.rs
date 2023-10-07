@@ -40,7 +40,7 @@ impl<T: Send + Sync, R: VfsRawMutex + 'static> UniFs<T, R> {
         let t_sb = sb
             .downcast_arc::<UniFsSuperBlock<R>>()
             .map_err(|_| VfsError::Invalid)?;
-        let sb = self.sb.lock();
+        let mut sb = self.sb.lock();
         if sb.is_none() {
             return Err(VfsError::Invalid);
         }
@@ -48,7 +48,7 @@ impl<T: Send + Sync, R: VfsRawMutex + 'static> UniFs<T, R> {
         if !Arc::ptr_eq(old_sb, &t_sb) {
             return Err(VfsError::Invalid);
         }
-        *self.sb.lock() = None;
+        *sb = None;
         info!("{} killed", self.real_fs);
         Ok(())
     }

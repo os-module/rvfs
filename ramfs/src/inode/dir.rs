@@ -92,17 +92,19 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
             .get_super_block()?
             .downcast_arc::<UniFsSuperBlock<R>>()
             .unwrap();
-        let inode_number = sb
-            .inode_index
-            .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+        sb.inode_count.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+
+        let inode = src.downcast_arc::<RamFsFileInode<T, R>>().unwrap();
+
+        let inode_number = inode.update_metadata(|meta| {
+            meta.inner.lock().link_count += 1;
+            meta.inode_number
+        });
         self.inode
             .children
             .lock()
             .push((name.to_string(), inode_number));
-        let inode = src.downcast_arc::<RamFsFileInode<T, R>>().unwrap();
-        inode.update_metadata(|meta| {
-            meta.inner.lock().link_count += 1;
-        });
+
         Ok(inode)
     }
 
@@ -124,11 +126,11 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
             inode_number,
             sy_name.to_string(),
         ));
-        sb.insert_inode(inode_number, inode.clone());
         self.inode
             .children
             .lock()
             .push((name.to_string(), inode_number));
+        sb.insert_inode(inode_number, inode.clone());
         Ok(inode)
     }
     fn lookup(&self, name: &str) -> VfsResult<Option<Arc<dyn VfsInode>>> {

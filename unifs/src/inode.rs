@@ -56,7 +56,12 @@ impl<T: Send + Sync + 'static, R: VfsRawMutex + 'static> UniFsDirInode<T, R> {
             .iter()
             .nth(start_index)
             .map(|(name, inode_number)| {
-                let inode = sb.get_inode(*inode_number).unwrap();
+                let inode = sb.get_inode(*inode_number).unwrap_or_else(|| {
+                    panic!(
+                        "inode {} not found in superblock",
+                        inode_number,
+                    )
+                });
                 VfsDirEntry {
                     ino: *inode_number,
                     ty: inode.inode_type(),

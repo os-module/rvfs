@@ -1,5 +1,5 @@
 use devfs::{DevFs, DevKernelProvider};
-use log::error;
+use log::{error};
 use spin::Mutex;
 use std::error::Error;
 use std::sync::Arc;
@@ -79,8 +79,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     assert_eq!(null_inode.inode_type(), VfsNodeType::CharDevice);
 
-    // let stat = null_inode.get_attr()?;
-    // println!("{:#?}",stat);
+    let stat = null_inode.get_attr()?;
+    println!("{:#?}",stat);
 
     let sb = null_inode.get_super_block()?;
     devfs.kill_sb(sb)?;

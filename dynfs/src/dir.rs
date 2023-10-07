@@ -29,7 +29,7 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> DynFsDirInode<T
         name: &str,
         inode: Option<Arc<dyn VfsInode>>,
         perm: VfsNodePerm,
-    ) -> VfsResult<()> {
+    ) -> VfsResult<Arc<dyn VfsInode>> {
         let sb = self.0.basic.sb.upgrade().unwrap();
         let inode_number = sb
             .inode_index
@@ -53,23 +53,23 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> DynFsDirInode<T
             )),
             _ => return Err(VfsError::NoSys),
         };
-        sb.insert_inode(inode_number, res);
+        sb.insert_inode(inode_number, res.clone());
         self.0
             .children
             .lock()
             .push((name.to_string(), inode_number));
-        Ok(())
+        Ok(res.clone())
     }
     pub fn add_file_manually(
         &self,
         name: &str,
         inode: Arc<dyn VfsInode>,
         perm: VfsNodePerm,
-    ) -> VfsResult<()> {
+    ) -> VfsResult<Arc<dyn VfsInode>> {
         self.add_manually(VfsNodeType::File, name, Some(inode), perm)
     }
 
-    pub fn add_dir_manually(&self, name: &str, perm: VfsNodePerm) -> VfsResult<()> {
+    pub fn add_dir_manually(&self, name: &str, perm: VfsNodePerm) -> VfsResult<Arc<dyn VfsInode>> {
         self.add_manually(VfsNodeType::Dir, name, None, perm)
     }
 
