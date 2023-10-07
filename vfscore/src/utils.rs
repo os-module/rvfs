@@ -2,7 +2,7 @@ use alloc::string::String;
 use bitflags::bitflags;
 bitflags! {
     pub struct VfsInodeMode: u32 {
-        const NULL  = 0;
+        // const NULL  = 0;
         /// Type
         const TYPE_MASK = 0o170000;
         /// FIFO
@@ -75,6 +75,59 @@ pub enum VfsNodeType {
     Socket = 0o14,
 }
 
+impl VfsNodeType {
+    /// Tests whether this node type represents a regular file.
+    pub const fn is_file(self) -> bool {
+        matches!(self, Self::File)
+    }
+
+    /// Tests whether this node type represents a directory.
+    pub const fn is_dir(self) -> bool {
+        matches!(self, Self::Dir)
+    }
+
+    /// Tests whether this node type represents a symbolic link.
+    pub const fn is_symlink(self) -> bool {
+        matches!(self, Self::SymLink)
+    }
+
+    /// Returns `true` if this node type is a block device.
+    pub const fn is_block_device(self) -> bool {
+        matches!(self, Self::BlockDevice)
+    }
+
+    /// Returns `true` if this node type is a char device.
+    pub const fn is_char_device(self) -> bool {
+        matches!(self, Self::CharDevice)
+    }
+
+    /// Returns `true` if this node type is a fifo.
+    pub const fn is_fifo(self) -> bool {
+        matches!(self, Self::Fifo)
+    }
+
+    /// Returns `true` if this node type is a socket.
+    pub const fn is_socket(self) -> bool {
+        matches!(self, Self::Socket)
+    }
+
+    /// Returns a character representation of the node type.
+    ///
+    /// For example, `d` for directory, `-` for regular file, etc.
+    pub const fn as_char(self) -> char {
+        match self {
+            Self::Fifo => 'p',
+            Self::CharDevice => 'c',
+            Self::Dir => 'd',
+            Self::BlockDevice => 'b',
+            Self::File => '-',
+            Self::SymLink => 'l',
+            Self::Socket => 's',
+            _ => '?',
+        }
+    }
+}
+
 bitflags::bitflags! {
     /// Node (file/directory) permission mode.
     pub struct VfsNodePerm: u16 {
@@ -99,6 +152,60 @@ bitflags::bitflags! {
         /// Others have execute permission.
         const OTHER_EXEC = 0o1;
     }
+}
+
+impl From<&str> for VfsNodePerm {
+    fn from(val: &str) -> Self {
+        let bytes = val.as_bytes();
+        assert_eq!(bytes.len(), 9);
+        let mut perm = VfsNodePerm::empty();
+        if bytes[0] == b'r' {
+            perm |= VfsNodePerm::OWNER_READ;
+        }
+        if bytes[1] == b'w' {
+            perm |= VfsNodePerm::OWNER_WRITE;
+        }
+        if bytes[2] == b'x' {
+            perm |= VfsNodePerm::OWNER_EXEC;
+        }
+        if bytes[3] == b'r' {
+            perm |= VfsNodePerm::GROUP_READ;
+        }
+        if bytes[4] == b'w' {
+            perm |= VfsNodePerm::GROUP_WRITE;
+        }
+        if bytes[5] == b'x' {
+            perm |= VfsNodePerm::GROUP_EXEC;
+        }
+        if bytes[6] == b'r' {
+            perm |= VfsNodePerm::OTHER_READ;
+        }
+        if bytes[7] == b'w' {
+            perm |= VfsNodePerm::OTHER_WRITE;
+        }
+        if bytes[8] == b'x' {
+            perm |= VfsNodePerm::OTHER_EXEC;
+        }
+        perm
+    }
+}
+
+#[test]
+fn test_perm_from_str() {
+    let perm: VfsNodePerm = "rwxrwxrwx".into();
+    assert_eq!(perm, VfsNodePerm::from_bits_truncate(0o777));
+    let perm: VfsNodePerm = "rwxr-xr-x".into();
+    assert_eq!(perm, VfsNodePerm::from_bits_truncate(0o755));
+    let perm: VfsNodePerm = "rw-rw-rw-".into();
+    assert_eq!(perm, VfsNodePerm::from_bits_truncate(0o666));
+    let perm: VfsNodePerm = "rw-r--r--".into();
+    assert_eq!(perm, VfsNodePerm::from_bits_truncate(0o644));
+    let perm: VfsNodePerm = "rw-------".into();
+    assert_eq!(perm, VfsNodePerm::from_bits_truncate(0o600));
+    let perm: VfsNodePerm = "r--r--r--".into();
+    assert_eq!(perm, VfsNodePerm::from_bits_truncate(0o444));
+    let perm: VfsNodePerm = "r--------".into();
+    assert_eq!(perm, VfsNodePerm::from_bits_truncate(0o400));
 }
 
 impl From<VfsInodeMode> for VfsNodeType {

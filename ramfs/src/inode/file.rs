@@ -1,16 +1,17 @@
 use super::*;
-use crate::inode::{basic_file_stat, RamfsInodeSame};
-use crate::{KernelProvider, RamFsSuperBlock};
+use crate::KernelProvider;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use unifs::inode::basic_file_stat;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
 use vfscore::utils::{FileStat, PollEvents, VfsNodePerm, VfsNodeType};
 use vfscore::VfsResult;
 pub struct RamFsFileInode<T: Send + Sync, R: VfsRawMutex> {
-    basic: RamfsInodeSame<T, R>,
+    basic: UniFsInodeSame<T, R>,
     inner: lock_api::Mutex<R, RamFsFileInodeInner>,
+    ext_attr: lock_api::Mutex<R, BTreeMap<String, String>>,
 }
 struct RamFsFileInodeInner {
     data: Vec<u8>,
@@ -18,19 +19,20 @@ struct RamFsFileInodeInner {
 
 impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsFileInode<T, R> {
     pub fn new(
-        sb: &Arc<RamFsSuperBlock<T, R>>,
+        sb: &Arc<UniFsSuperBlock<R>>,
         provider: T,
         inode_number: u64,
         perm: VfsNodePerm,
     ) -> Self {
         Self {
-            basic: RamfsInodeSame::new(sb, provider, inode_number, perm),
+            basic: UniFsInodeSame::new(sb, provider, inode_number, perm),
             inner: lock_api::Mutex::new(RamFsFileInodeInner { data: Vec::new() }),
+            ext_attr: lock_api::Mutex::new(BTreeMap::new()),
         }
     }
     pub fn update_metadata<F, Res>(&self, f: F) -> Res
     where
-        F: FnOnce(&RamfsInodeSame<T, R>) -> Res,
+        F: FnOnce(&UniFsInodeSame<T, R>) -> Res,
     {
         f(&self.basic)
     }
@@ -85,14 +87,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsFi
     }
 
     fn list_xattr(&self) -> VfsResult<Vec<String>> {
-        let res = self
-            .basic
-            .inner
-            .lock()
-            .ext_attr
-            .keys()
-            .map(|k| k.clone())
-            .collect();
+        let res = self.ext_attr.lock().keys().cloned().collect();
         Ok(res)
     }
     fn inode_type(&self) -> VfsNodeType {

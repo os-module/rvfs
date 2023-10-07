@@ -1,5 +1,5 @@
 [package]
-name = "ramfs"
+name = "dynfs"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,7 +10,6 @@ lock_api = {version = "0",default-features = false}
 vfscore = {path = "../vfscore"}
 log = "0.4.14"
 unifs = {path = "../unifs"}
-
 
 [dev-dependencies]
 spin = "0"

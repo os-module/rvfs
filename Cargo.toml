@@ -3,7 +3,9 @@ members = [
     "vfscore",
     "unifs",
     "ramfs",
-    "vfs"
+    "devfs",
+    "dynfs",
+    "demo"
 ]
 resolver = "2"
 

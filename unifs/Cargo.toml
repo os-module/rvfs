@@ -7,6 +7,10 @@ edition = "2021"
 
 [dependencies]
 lock_api = {version = "0",default-features = false}
-pconst = { git = "https://github.com/os-module/pconst.git"}
 vfscore = {path = "../vfscore"}
 log = "0.4.14"
+
+
+[dev-dependencies]
+spin = "0"
+env_logger = "0.9"
