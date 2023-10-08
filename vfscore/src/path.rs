@@ -95,15 +95,9 @@ impl VfsPath {
         self.path.is_empty()
     }
 
-    pub fn open_file(&self) -> VfsResult<Arc<dyn VfsDentry>> {
+    pub fn open(&self) -> VfsResult<Arc<dyn VfsDentry>> {
         self.exists()?
-            .map(|dentry| {
-                if dentry.inode()?.inode_type().is_dir() {
-                    Err(VfsError::Invalid)
-                } else {
-                    Ok(dentry)
-                }
-            })
+            .map(Ok)
             .unwrap_or_else(|| Err(VfsError::NoEntry))
     }
 
@@ -212,7 +206,9 @@ impl VfsPath {
             }
             path = rest.unwrap();
         }
-        Ok(Some(parent))
+        // resolve mount point
+        let dentry = real_dentry(parent);
+        Ok(Some(dentry))
     }
     pub fn filename(&self) -> String {
         let index = self.path.rfind('/').map(|x| x + 1).unwrap_or(0);
@@ -233,7 +229,7 @@ impl VfsPath {
 
 fn real_dentry(dentry: Arc<dyn VfsDentry>) -> Arc<dyn VfsDentry> {
     if dentry.is_mount_point() {
-        let mnt = dentry.get_vfs_mount().unwrap();
+        let mnt = dentry.mount_point().unwrap();
         real_dentry(mnt.root)
     } else {
         dentry
@@ -275,7 +271,11 @@ mod tests {
             todo!()
         }
 
-        fn get_vfs_mount(&self) -> Option<VfsMountPoint> {
+        fn mount_point(&self) -> Option<VfsMountPoint> {
+            todo!()
+        }
+
+        fn clear_mount_point(&self) {
             todo!()
         }
 

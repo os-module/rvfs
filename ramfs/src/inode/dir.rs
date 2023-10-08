@@ -92,7 +92,8 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
             .get_super_block()?
             .downcast_arc::<UniFsSuperBlock<R>>()
             .unwrap();
-        sb.inode_count.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+        sb.inode_count
+            .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
 
         let inode = src.downcast_arc::<RamFsFileInode<T, R>>().unwrap();
 

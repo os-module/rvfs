@@ -1,7 +1,7 @@
+use devfs::DevKernelProvider;
+use log::info;
 use std::error::Error;
 use std::sync::Arc;
-use log::info;
-use devfs::DevKernelProvider;
 use vfscore::dentry::VfsDentry;
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
@@ -56,10 +56,8 @@ impl VfsInode for NullDev {
     }
 }
 
-
-
-pub fn init_devfs(devfs:Arc<dyn VfsFsType>) -> Result<Arc<dyn VfsDentry>, Box<dyn Error>> {
-    let root_dt = devfs.clone().mount(MountFlags::empty(), "", &[])?;
+pub fn init_devfs(devfs: Arc<dyn VfsFsType>) -> Result<Arc<dyn VfsDentry>, Box<dyn Error>> {
+    let root_dt = devfs.i_mount(MountFlags::empty(), "", &[])?;
     let root_inode = root_dt.inode()?;
     let null = root_inode.create(
         "null",
@@ -73,14 +71,16 @@ pub fn init_devfs(devfs:Arc<dyn VfsFsType>) -> Result<Arc<dyn VfsDentry>, Box<dy
         VfsNodePerm::from_bits_truncate(0o666),
         Some(1),
     )?;
-    root_dt.clone().insert("null",null.clone())?;
-    root_dt.clone().insert("zero",zero.clone())?;
+    root_dt.i_insert("null", null.clone())?;
+    root_dt.i_insert("zero", zero.clone())?;
     info!("devfs init success");
     info!("devfs tree:");
-    info!(r"
+    info!(
+        r"
     /
     ├── null
-    └── zero");
+    └── zero"
+    );
 
     Ok(root_dt)
 }

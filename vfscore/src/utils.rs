@@ -189,6 +189,43 @@ impl From<&str> for VfsNodePerm {
         perm
     }
 }
+impl VfsNodePerm{
+    /// Returns a 9-bytes string representation of the permission.
+    ///
+    /// For example, `0o755` is represented as `rwxr-xr-x`.
+    pub const fn rwx_buf(&self) -> [u8; 9] {
+        let mut perm = [b'-'; 9];
+        if self.contains(Self::OWNER_READ) {
+            perm[0] = b'r';
+        }
+        if self.contains(Self::OWNER_WRITE) {
+            perm[1] = b'w';
+        }
+        if self.contains(Self::OWNER_EXEC) {
+            perm[2] = b'x';
+        }
+        if self.contains(Self::GROUP_READ) {
+            perm[3] = b'r';
+        }
+        if self.contains(Self::GROUP_WRITE) {
+            perm[4] = b'w';
+        }
+        if self.contains(Self::GROUP_EXEC) {
+            perm[5] = b'x';
+        }
+        if self.contains(Self::OTHER_READ) {
+            perm[6] = b'r';
+        }
+        if self.contains(Self::OTHER_WRITE) {
+            perm[7] = b'w';
+        }
+        if self.contains(Self::OTHER_EXEC) {
+            perm[8] = b'x';
+        }
+        perm
+    }
+}
+
 
 #[test]
 fn test_perm_from_str() {

@@ -65,8 +65,12 @@ impl<R: VfsRawMutex + 'static> VfsDentry for UniFsDentry<R> {
         Ok(self.inner.lock().inode.clone())
     }
 
-    fn get_vfs_mount(&self) -> Option<VfsMountPoint> {
+    fn mount_point(&self) -> Option<VfsMountPoint> {
         self.inner.lock().mnt.clone()
+    }
+
+    fn clear_mount_point(&self) {
+        self.inner.lock().mnt = None;
     }
 
     fn find(&self, path: &str) -> Option<Arc<dyn VfsDentry>> {

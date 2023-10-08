@@ -26,13 +26,13 @@ pub fn basic_file_stat<T: Send + Sync, R: VfsRawMutex>(basic: &UniFsInodeSame<T,
     FileStat {
         st_dev: 0,
         st_ino: basic.inode_number,
-        st_mode: 0,
+        st_mode: inner.perm.bits() as u32,
         st_nlink: inner.link_count,
         st_uid: 0,
         st_gid: 0,
         st_rdev: 0,
         __pad: 0,
-        st_size: 0,
+        st_size: 4096,
         st_blksize: 4096,
         __pad2: 0,
         st_blocks: 0,
@@ -56,12 +56,9 @@ impl<T: Send + Sync + 'static, R: VfsRawMutex + 'static> UniFsDirInode<T, R> {
             .iter()
             .nth(start_index)
             .map(|(name, inode_number)| {
-                let inode = sb.get_inode(*inode_number).unwrap_or_else(|| {
-                    panic!(
-                        "inode {} not found in superblock",
-                        inode_number,
-                    )
-                });
+                let inode = sb
+                    .get_inode(*inode_number)
+                    .unwrap_or_else(|| panic!("inode {} not found in superblock", inode_number,));
                 VfsDirEntry {
                     ino: *inode_number,
                     ty: inode.inode_type(),

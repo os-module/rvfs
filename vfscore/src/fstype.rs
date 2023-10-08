@@ -32,7 +32,7 @@ bitflags! {
 }
 
 pub trait VfsFsType: Send + Sync + AnySync {
-    /// the method to call when a new instance of this filesystem should be mounted
+    /// create a fs instance or return the old one if this fs only allow one instance
     fn mount(
         self: Arc<Self>,
         flags: MountFlags,
@@ -45,6 +45,20 @@ pub trait VfsFsType: Send + Sync + AnySync {
     fn fs_flag(&self) -> FileSystemFlags;
     /// Get the name of this filesystem
     fn fs_name(&self) -> &'static str;
+}
+
+impl dyn VfsFsType {
+    /// create a fs instance or return the old one if this fs only allow one instance
+    ///
+    /// It likes [`VfsFsType::mount`], but it will not take ownership of `self`
+    pub fn i_mount(
+        self: &Arc<Self>,
+        flags: MountFlags,
+        dev_name: &str,
+        data: &[u8],
+    ) -> VfsResult<Arc<dyn VfsDentry>> {
+        self.clone().mount(flags, dev_name, data)
+    }
 }
 
 downcast_sync!(dyn VfsFsType);
