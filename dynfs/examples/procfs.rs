@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         DynFsKernelProviderImpl,
         "procfs",
     ));
-    let root_dt = procfs.clone().mount(MountFlags::empty(), "", &[])?;
+    let root_dt = procfs.clone().mount(MountFlags::empty(), None, &[])?;
     let root_inode = root_dt.inode()?;
 
     // Procfs don't support to create file/dir at runtime

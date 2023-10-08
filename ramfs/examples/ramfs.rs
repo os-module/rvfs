@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let ramfs = Arc::new(RamFs::<_, Mutex<()>>::new(PageProviderImpl));
     // create a real ramfs
     // This function will return the root dentry of the ramfs
-    let root = ramfs.clone().mount(MountFlags::empty(), "", &[])?;
+    let root = ramfs.clone().mount(MountFlags::empty(), None, &[])?;
     // we can get the super block from the inode
     let sb = root.inode()?.get_super_block()?;
     // we can get the fstype from the super block
@@ -72,7 +72,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mnt_dt = root.clone().insert("mount_dir", mount_dir)?;
 
     // create a new ramfs
-    let new_ramfs_root = ramfs.clone().mount(MountFlags::empty(), "", &[])?;
+    let new_ramfs_root = ramfs.clone().mount(MountFlags::empty(), None, &[])?;
     let new_sb = new_ramfs_root.inode()?.get_super_block()?;
     // mount the ramfs to the mount_dir
     mnt_dt

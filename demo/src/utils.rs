@@ -41,7 +41,7 @@ pub fn print_fs_tree(root: Arc<dyn VfsDentry>, prefix: String) -> Result<(), Box
                 d
             } else {
                 let d = root.inode()?.lookup(&name)?.unwrap();
-                
+
                 root.i_insert(&name, d)?
             };
             if !sub_dt.is_mount_point() {

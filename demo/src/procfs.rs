@@ -80,8 +80,8 @@ impl VfsInode for MemInfo {
 pub type ProcFsDirInodeImpl = DynFsDirInode<DynFsKernelProviderImpl, Mutex<()>>;
 
 pub fn init_procfs(procfs: Arc<dyn VfsFsType>) -> Result<Arc<dyn VfsDentry>, Box<dyn Error>> {
-    let root_dt = procfs.i_mount(MountFlags::empty(), "", &[])?;
-    
+    let root_dt = procfs.i_mount(MountFlags::empty(), None, &[])?;
+
     let root_inode = root_dt.inode()?;
     let root_inode = root_inode.downcast_arc::<ProcFsDirInodeImpl>().unwrap();
     let p2 = root_inode.add_dir_manually("2", "r-xr-xr-x".into())?;

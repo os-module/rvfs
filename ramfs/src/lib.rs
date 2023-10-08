@@ -13,6 +13,7 @@ use unifs::*;
 use vfscore::dentry::VfsDentry;
 use vfscore::error::VfsError;
 use vfscore::fstype::{FileSystemFlags, MountFlags, VfsFsType};
+use vfscore::inode::VfsInode;
 use vfscore::superblock::VfsSuperBlock;
 use vfscore::utils::{VfsNodePerm, VfsTimeSpec};
 use vfscore::VfsResult;
@@ -39,7 +40,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for RamFs<
     fn mount(
         self: Arc<Self>,
         _flags: MountFlags,
-        _dev_name: &str,
+        _dev: Option<Arc<dyn VfsInode>>,
         _data: &[u8],
     ) -> VfsResult<Arc<dyn VfsDentry>> {
         let unifs = UniFs::<T, R>::new("ramfs", self.provider.clone());

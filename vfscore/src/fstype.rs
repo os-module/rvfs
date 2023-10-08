@@ -1,4 +1,5 @@
 use crate::dentry::VfsDentry;
+use crate::inode::VfsInode;
 use crate::superblock::VfsSuperBlock;
 use crate::VfsResult;
 use alloc::sync::{Arc, Weak};
@@ -36,7 +37,7 @@ pub trait VfsFsType: Send + Sync + AnySync {
     fn mount(
         self: Arc<Self>,
         flags: MountFlags,
-        dev_name: &str,
+        dev: Option<Arc<dyn VfsInode>>,
         data: &[u8],
     ) -> VfsResult<Arc<dyn VfsDentry>>;
     /// unmount a filesystem
@@ -54,10 +55,10 @@ impl dyn VfsFsType {
     pub fn i_mount(
         self: &Arc<Self>,
         flags: MountFlags,
-        dev_name: &str,
+        dev: Option<Arc<dyn VfsInode>>,
         data: &[u8],
     ) -> VfsResult<Arc<dyn VfsDentry>> {
-        self.clone().mount(flags, dev_name, data)
+        self.clone().mount(flags, dev, data)
     }
 }
 

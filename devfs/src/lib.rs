@@ -33,7 +33,7 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for Dev
     fn mount(
         self: Arc<Self>,
         _flags: MountFlags,
-        _dev_name: &str,
+        _dev: Option<Arc<dyn VfsInode>>,
         _data: &[u8],
     ) -> VfsResult<Arc<dyn VfsDentry>> {
         if self.0.sb.lock().is_none() {

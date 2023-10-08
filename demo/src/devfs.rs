@@ -57,7 +57,7 @@ impl VfsInode for NullDev {
 }
 
 pub fn init_devfs(devfs: Arc<dyn VfsFsType>) -> Result<Arc<dyn VfsDentry>, Box<dyn Error>> {
-    let root_dt = devfs.i_mount(MountFlags::empty(), "", &[])?;
+    let root_dt = devfs.i_mount(MountFlags::empty(), None, &[])?;
     let root_inode = root_dt.inode()?;
     let null = root_inode.create(
         "null",

@@ -30,7 +30,7 @@ impl DevKernelProvider for DevFsKernelProviderImpl {
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
     let devfs = Arc::new(DevFs::<_, Mutex<()>>::new(DevFsKernelProviderImpl));
-    let root_dt = devfs.clone().mount(MountFlags::empty(), "", &[])?;
+    let root_dt = devfs.clone().mount(MountFlags::empty(), None, &[])?;
     let root_inode = root_dt.inode()?;
     root_inode.create(
         "null",

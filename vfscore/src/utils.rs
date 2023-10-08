@@ -189,7 +189,7 @@ impl From<&str> for VfsNodePerm {
         perm
     }
 }
-impl VfsNodePerm{
+impl VfsNodePerm {
     /// Returns a 9-bytes string representation of the permission.
     ///
     /// For example, `0o755` is represented as `rwxr-xr-x`.
@@ -225,7 +225,6 @@ impl VfsNodePerm{
         perm
     }
 }
-
 
 #[test]
 fn test_perm_from_str() {
