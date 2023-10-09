@@ -4,6 +4,7 @@ use spin::Mutex;
 use std::cmp::min;
 use std::error::Error;
 use std::sync::Arc;
+use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::fstype::{MountFlags, VfsFsType};
 use vfscore::inode::{InodeAttr, VfsInode};
@@ -41,7 +42,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let dynfs_inode = root_inode
         .clone()
         .downcast_arc::<DynFsDirInodeImpl>()
-        .unwrap();
+        .map_err(|_| VfsError::Invalid)?;
 
     // procfs support add file manually
     dynfs_inode.add_file_manually("2", Arc::new(ProcessInfo), "r--r--r--".into())?;

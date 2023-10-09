@@ -3,9 +3,10 @@ use crate::inode::VfsInode;
 use crate::VfsResult;
 use alloc::string::String;
 use alloc::sync::Arc;
-use downcast::{downcast_sync, AnySync};
 
-pub trait VfsDentry: Send + Sync + AnySync {
+use downcast_rs::{impl_downcast, DowncastSync};
+
+pub trait VfsDentry: Send + Sync + DowncastSync {
     /// Return the name of this dentry
     fn name(&self) -> String;
     /// Make this dentry to  a mount point
@@ -61,4 +62,4 @@ impl dyn VfsDentry {
     }
 }
 
-downcast_sync!(dyn VfsDentry);
+impl_downcast!(sync VfsDentry);

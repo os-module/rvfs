@@ -5,6 +5,7 @@ use std::cmp::min;
 use std::error::Error;
 use std::sync::Arc;
 use vfscore::dentry::VfsDentry;
+use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::fstype::{MountFlags, VfsFsType};
 use vfscore::inode::{InodeAttr, VfsInode};
@@ -83,15 +84,21 @@ pub fn init_procfs(procfs: Arc<dyn VfsFsType>) -> Result<Arc<dyn VfsDentry>, Box
     let root_dt = procfs.i_mount(MountFlags::empty(), None, &[])?;
 
     let root_inode = root_dt.inode()?;
-    let root_inode = root_inode.downcast_arc::<ProcFsDirInodeImpl>().unwrap();
+    let root_inode = root_inode
+        .downcast_arc::<ProcFsDirInodeImpl>()
+        .map_err(|_| VfsError::Invalid)?;
     let p2 = root_inode.add_dir_manually("2", "r-xr-xr-x".into())?;
     let p3 = root_inode.add_dir_manually("3", "r-xr-xr-x".into())?;
     let p2_dt = root_dt.i_insert("2", p2.clone())?;
     let p3_dt = root_dt.i_insert("3", p3.clone())?;
-    let p2 = p2.downcast_arc::<ProcFsDirInodeImpl>().unwrap();
+    let p2 = p2
+        .downcast_arc::<ProcFsDirInodeImpl>()
+        .map_err(|_| VfsError::Invalid)?;
     let pp2 = p2.add_file_manually("pid", Arc::new(ProcessInfo::new(2)), "r--r--r--".into())?;
     p2_dt.insert("pid", pp2)?;
-    let p3 = p3.downcast_arc::<ProcFsDirInodeImpl>().unwrap();
+    let p3 = p3
+        .downcast_arc::<ProcFsDirInodeImpl>()
+        .map_err(|_| VfsError::Invalid)?;
     let pp3 = p3.add_file_manually("pid", Arc::new(ProcessInfo::new(3)), "r--r--r--".into())?;
     p3_dt.insert("pid", pp3)?;
     let mem = root_inode.add_file_manually("meminfo", Arc::new(MemInfo), "r--r--r--".into())?;

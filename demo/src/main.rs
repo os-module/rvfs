@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::ops::Index;
 use std::sync::Arc;
+use vfscore::error::VfsError;
 use vfscore::fstype::{MountFlags, VfsFsType};
 use vfscore::path::VfsPath;
 use vfscore::utils::VfsNodeType;
@@ -58,10 +59,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     let proc_path = path.join("proc")?;
     let proc_dt = proc_path.open()?;
 
-    let proc_inode = proc_dt.inode()?.downcast_arc::<ProcFsDirInodeImpl>()?;
+    let proc_inode = proc_dt
+        .inode()?
+        .downcast_arc::<ProcFsDirInodeImpl>()
+        .map_err(|_| VfsError::Invalid)?;
     let pid1 = proc_inode.add_dir_manually("1", "r-xr-xr-x".into())?;
-    let pid1_dt = proc_dt.i_insert("1", pid1.clone())?;
-    let pid1 = pid1.downcast_arc::<ProcFsDirInodeImpl>()?;
+    let pid1_dt = proc_dt
+        .i_insert("1", pid1.clone())
+        .map_err(|_| VfsError::Invalid)?;
+    let pid1 = pid1
+        .downcast_arc::<ProcFsDirInodeImpl>()
+        .map_err(|_| VfsError::Invalid)?;
     let pid1pid =
         pid1.add_file_manually("pid", Arc::new(ProcessInfo::new(1)), "r--r--r--".into())?;
     pid1_dt.i_insert("pid", pid1pid)?;

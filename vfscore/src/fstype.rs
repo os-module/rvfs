@@ -4,7 +4,7 @@ use crate::superblock::VfsSuperBlock;
 use crate::VfsResult;
 use alloc::sync::{Arc, Weak};
 use bitflags::bitflags;
-use downcast::{downcast_sync, AnySync};
+use downcast_rs::{impl_downcast, DowncastSync};
 bitflags! {
     pub struct FileSystemFlags:u32{
          /// The file system requires a device.
@@ -32,7 +32,7 @@ bitflags! {
     }
 }
 
-pub trait VfsFsType: Send + Sync + AnySync {
+pub trait VfsFsType: Send + Sync + DowncastSync {
     /// create a fs instance or return the old one if this fs only allow one instance
     fn mount(
         self: Arc<Self>,
@@ -62,7 +62,7 @@ impl dyn VfsFsType {
     }
 }
 
-downcast_sync!(dyn VfsFsType);
+impl_downcast!(sync VfsFsType);
 
 #[derive(Clone)]
 pub struct VfsMountPoint {

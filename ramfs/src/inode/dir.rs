@@ -58,7 +58,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
         let sb = self
             .get_super_block()?
             .downcast_arc::<UniFsSuperBlock<R>>()
-            .unwrap();
+            .map_err(|_| VfsError::Invalid)?;
         let inode_number = sb
             .inode_index
             .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
@@ -91,11 +91,13 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
         let sb = self
             .get_super_block()?
             .downcast_arc::<UniFsSuperBlock<R>>()
-            .unwrap();
+            .map_err(|_| VfsError::Invalid)?;
         sb.inode_count
             .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
 
-        let inode = src.downcast_arc::<RamFsFileInode<T, R>>().unwrap();
+        let inode = src
+            .downcast_arc::<RamFsFileInode<T, R>>()
+            .map_err(|_| VfsError::Invalid)?;
 
         let inode_number = inode.update_metadata(|meta| {
             meta.inner.lock().link_count += 1;
@@ -117,7 +119,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
         let sb = self
             .get_super_block()?
             .downcast_arc::<UniFsSuperBlock<R>>()
-            .unwrap();
+            .map_err(|_| VfsError::Invalid)?;
         let inode_number = sb
             .inode_index
             .fetch_add(1, core::sync::atomic::Ordering::SeqCst);

@@ -55,7 +55,9 @@ impl<R: VfsRawMutex + 'static> VfsDentry for UniFsDentry<R> {
             mount_point: Arc::downgrade(&point),
             mnt_flags: mount_flag,
         };
-        let point = point.downcast_arc::<UniFsDentry<R>>().unwrap();
+        let point = point
+            .downcast_arc::<UniFsDentry<R>>()
+            .map_err(|_| VfsError::Invalid)?;
         let mut inner = point.inner.lock();
         inner.mnt = Some(mnt);
         Ok(())

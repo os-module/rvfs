@@ -3,8 +3,7 @@ use crate::fstype::VfsFsType;
 use crate::utils::VfsFsStat;
 use crate::VfsResult;
 use alloc::sync::Arc;
-use downcast::{downcast_sync, AnySync};
-
+use downcast_rs::{impl_downcast, DowncastSync};
 /// Type of superblock keying.
 pub enum SuperType {
     /// Only one such superblock may exist.
@@ -18,7 +17,7 @@ pub enum SuperType {
     /// Uses a block device.
     BlockDev,
 }
-pub trait VfsSuperBlock: Send + Sync + AnySync {
+pub trait VfsSuperBlock: Send + Sync + DowncastSync {
     /// Determines how superblocks for this file system type are keyed.
     /// called when VFS is writing out all dirty data associated with a superblock.
     ///
@@ -41,4 +40,4 @@ pub trait VfsSuperBlock: Send + Sync + AnySync {
     fn root_dentry(&self) -> VfsResult<Arc<dyn VfsDentry>>;
 }
 
-downcast_sync!(dyn VfsSuperBlock);
+impl_downcast!(sync  VfsSuperBlock);

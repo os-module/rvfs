@@ -6,8 +6,8 @@ use crate::VfsResult;
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use downcast::{downcast_sync, AnySync};
-
+// use downcast::{downcast_sync, AnySync};
+use downcast_rs::{impl_downcast, DowncastSync};
 pub struct InodeAttr {
     /// File mode.
     pub mode: u32,
@@ -22,7 +22,7 @@ pub struct InodeAttr {
     pub ctime: VfsTimeSpec,
 }
 
-pub trait VfsInode: AnySync + VfsFile {
+pub trait VfsInode: DowncastSync + VfsFile {
     /// Get the super block of this dentry
     fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>>;
 
@@ -75,4 +75,4 @@ pub trait VfsInode: AnySync + VfsFile {
     fn inode_type(&self) -> VfsNodeType;
 }
 
-downcast_sync!(dyn VfsInode);
+impl_downcast!(sync  VfsInode);

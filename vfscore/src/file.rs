@@ -1,8 +1,7 @@
 use crate::error::VfsError;
 use crate::utils::{PollEvents, VfsDirEntry};
 use crate::VfsResult;
-use downcast::{downcast_sync, AnySync};
-
+use downcast_rs::{impl_downcast, DowncastSync};
 /// Enumeration of possible methods to seek within an I/O object.
 ///
 /// It is used by the [`Seek`] trait.
@@ -23,7 +22,7 @@ pub enum SeekFrom {
     /// seek before byte 0.
     Current(i64),
 }
-pub trait VfsFile: Send + Sync + AnySync {
+pub trait VfsFile: Send + Sync + DowncastSync {
     fn read_at(&self, _offset: u64, _buf: &mut [u8]) -> VfsResult<usize> {
         Err(VfsError::NoSys)
     }
@@ -53,4 +52,4 @@ pub trait VfsFile: Send + Sync + AnySync {
     }
 }
 
-downcast_sync!(dyn VfsFile);
+impl_downcast!(sync VfsFile);
