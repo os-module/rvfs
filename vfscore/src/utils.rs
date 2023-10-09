@@ -224,6 +224,20 @@ impl VfsNodePerm {
         }
         perm
     }
+    /// Returns the default permission for a file.
+    ///
+    /// The default permission is `0o666` (owner/group/others can read and write).
+    pub const fn default_file() -> Self {
+        Self::from_bits_truncate(0o666)
+    }
+
+    /// Returns the default permission for a directory.
+    ///
+    /// The default permission is `0o755` (owner can read, write and execute,
+    /// group/others can read and execute).
+    pub const fn default_dir() -> Self {
+        Self::from_bits_truncate(0o755)
+    }
 }
 
 #[test]

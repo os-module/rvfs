@@ -4,8 +4,8 @@ use vfscore::inode::VfsInode;
 
 #[derive(Clone)]
 pub struct FatDevice {
-    pos: i64,
-    device_file: Arc<dyn VfsInode>,
+    pub pos: i64,
+    pub device_file: Arc<dyn VfsInode>,
 }
 
 impl FatDevice {

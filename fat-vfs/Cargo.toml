@@ -9,7 +9,7 @@ edition = "2021"
 fatfs = { git = "https://github.com/os-module/rust-fatfs.git",default-features = false,features = ["alloc","lfn"] }
 lock_api = {version = "0",default-features = false}
 vfscore = {path = "../vfscore"}
-
+unifs = {path = "../unifs"}
 log = "0.4.14"
 
 

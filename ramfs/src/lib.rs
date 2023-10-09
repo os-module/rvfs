@@ -56,7 +56,6 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for RamFs<
             .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
         sb.inode_count
             .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
-
         sb.root.lock().replace(root_dentry.clone());
         let sb_ptr = Arc::as_ptr(&sb) as usize;
         unifs.sb.lock().replace(sb);
