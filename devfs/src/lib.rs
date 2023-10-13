@@ -18,7 +18,7 @@ use vfscore::VfsResult;
 
 pub trait DevKernelProvider: Send + Sync + Clone {
     fn current_time(&self) -> VfsTimeSpec;
-    fn rdev2device(&self, rdev: u32) -> Option<Arc<dyn VfsInode>>;
+    fn rdev2device(&self, rdev: u64) -> Option<Arc<dyn VfsInode>>;
 }
 
 pub struct DevFs<T: Send + Sync, R: VfsRawMutex>(UniFs<T, R>);

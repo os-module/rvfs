@@ -2,14 +2,17 @@
 //!
 use crate::dentry::VfsDentry;
 use crate::error::VfsError;
-use crate::utils::{VfsNodePerm, VfsNodeType};
+use crate::inode::VfsInode;
+use crate::utils::{VfsDirEntry, VfsNodePerm, VfsNodeType};
 use crate::VfsResult;
+use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::sync::Arc;
-use alloc::vec;
 use alloc::vec::Vec;
-use core::fmt::{Debug, Formatter};
-use log::error;
+use alloc::{vec};
+use core::error::Error;
+use core::fmt::{write, Debug, Formatter, Write};
+use log::{error};
 
 #[derive(Clone)]
 pub struct VfsPath {
@@ -241,6 +244,97 @@ fn split_path(path: &str) -> (&str, Option<&str>) {
     trimmed_path.find('/').map_or((trimmed_path, None), |n| {
         (&trimmed_path[..n], Some(&trimmed_path[n + 1..]))
     })
+}
+
+pub fn print_fs_tree(
+    output: &mut dyn Write,
+    root: Arc<dyn VfsDentry>,
+    prefix: String,
+) -> Result<(), Box<dyn Error>> {
+    let mut children = root.inode()?.children();
+    let mut child = children.next();
+    while let Some(c) = child {
+        let name = c.name;
+        let inode_type = c.ty;
+        let inode = root.inode()?.lookup(&name)?.unwrap();
+        let stat = inode.get_attr()?;
+        let perm = VfsNodePerm::from_bits_truncate(stat.st_mode as u16);
+        let rwx_buf = perm.rwx_buf();
+        let rwx = core::str::from_utf8(&rwx_buf)?;
+
+        let mut buf = [0u8; 20];
+        let option = if inode_type == VfsNodeType::SymLink {
+            let r = inode.readlink(&mut buf)?;
+            let content = core::str::from_utf8(&buf[..r])?;
+            "-> ".to_string() + content
+        } else {
+            "".to_string()
+        };
+
+        write(
+            output,
+            format_args!(
+                "{}{}{} {:>8} {} {}\n",
+                prefix,
+                inode_type.as_char(),
+                rwx,
+                stat.st_size,
+                name,
+                option
+            ),
+        )
+        .unwrap();
+
+        if inode_type == VfsNodeType::Dir {
+            let d = root.find(&name);
+            let sub_dt = if let Some(d) = d {
+                d
+            } else {
+                let d = root.inode()?.lookup(&name)?.unwrap();
+
+                root.i_insert(&name, d)?
+            };
+            if !sub_dt.is_mount_point() {
+                print_fs_tree(output, sub_dt, prefix.clone() + "  ")?;
+            } else {
+                let mnt = sub_dt.mount_point().unwrap();
+                let new_root = mnt.root;
+                print_fs_tree(output, new_root, prefix.clone() + "  ")?;
+            }
+        }
+        child = children.next();
+    }
+    Ok(())
+}
+
+trait DirIter {
+    fn children(&self) -> Box<dyn Iterator<Item = VfsDirEntry>>;
+}
+
+struct DirIterImpl {
+    inode: Arc<dyn VfsInode>,
+    index: usize,
+}
+impl Iterator for DirIterImpl {
+    type Item = VfsDirEntry;
+    fn next(&mut self) -> Option<Self::Item> {
+        let x = self.inode.readdir(self.index).unwrap();
+        if let Some(x) = x {
+            self.index += 1;
+            Some(x)
+        } else {
+            None
+        }
+    }
+}
+
+impl DirIter for Arc<dyn VfsInode> {
+    fn children(&self) -> Box<dyn Iterator<Item = VfsDirEntry>> {
+        Box::new(DirIterImpl {
+            inode: self.clone(),
+            index: 0,
+        })
+    }
 }
 
 #[cfg(test)]

@@ -86,7 +86,7 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
         name: &str,
         ty: VfsNodeType,
         perm: VfsNodePerm,
-        _rdev: Option<u32>,
+        _rdev: Option<u64>,
     ) -> VfsResult<Arc<dyn VfsInode>> {
         let mut inode_cache = self.inode_cache.lock();
         if inode_cache.contains_key(name) {

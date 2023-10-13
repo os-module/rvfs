@@ -98,7 +98,7 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for Dy
         _name: &str,
         _ty: VfsNodeType,
         _perm: VfsNodePerm,
-        _rdev: Option<u32>,
+        _rdev: Option<u64>,
     ) -> VfsResult<Arc<dyn VfsInode>> {
         Err(VfsError::NoSys)
     }

@@ -53,7 +53,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
         name: &str,
         ty: VfsNodeType,
         perm: VfsNodePerm,
-        _rdev: Option<u32>,
+        _rdev: Option<u64>,
     ) -> VfsResult<Arc<dyn VfsInode>> {
         let sb = self
             .get_super_block()?

@@ -18,7 +18,7 @@ impl DevKernelProvider for DevFsKernelProviderImpl {
     fn current_time(&self) -> VfsTimeSpec {
         VfsTimeSpec::new(0, 0)
     }
-    fn rdev2device(&self, rdev: u32) -> Option<Arc<dyn VfsInode>> {
+    fn rdev2device(&self, rdev: u64) -> Option<Arc<dyn VfsInode>> {
         match rdev {
             0 => Some(Arc::new(NullDev)),
             1 => Some(Arc::new(NullDev)),

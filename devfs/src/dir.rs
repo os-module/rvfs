@@ -47,9 +47,9 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for DevF
         name: &str,
         ty: VfsNodeType,
         perm: VfsNodePerm,
-        rdev: Option<u32>,
+        rdev: Option<u64>,
     ) -> VfsResult<Arc<dyn VfsInode>> {
-        if rdev.is_none() {
+        if ty != VfsNodeType::Dir && rdev.is_none() {
             return Err(VfsError::Invalid);
         }
         let sb = self.basic.sb.upgrade().unwrap();

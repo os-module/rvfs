@@ -66,7 +66,9 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for Dy
     }
 
     fn get_attr(&self) -> VfsResult<FileStat> {
-        let attr = basic_file_stat(&self.basic);
+        let mut attr = basic_file_stat(&self.basic);
+        let real_attr = self.real_inode()?.get_attr()?;
+        attr.st_size = real_attr.st_size;
         Ok(attr)
     }
 

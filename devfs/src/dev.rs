@@ -10,7 +10,7 @@ use vfscore::utils::{FileStat, PollEvents, VfsNodePerm, VfsNodeType};
 use vfscore::VfsResult;
 
 pub struct DevFsDevInode<T: Send + Sync, R: VfsRawMutex> {
-    rdev: u32,
+    rdev: u64,
     basic: UniFsInodeSame<T, R>,
     ty: VfsNodeType,
 }
@@ -20,7 +20,7 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> DevFsDevInode<T, 
         sb: &Arc<UniFsSuperBlock<R>>,
         provider: T,
         inode_number: u64,
-        rdev: u32,
+        rdev: u64,
         ty: VfsNodeType,
     ) -> Self {
         Self {
@@ -78,7 +78,8 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for DevF
     }
 
     fn get_attr(&self) -> VfsResult<FileStat> {
-        let attr = basic_file_stat(&self.basic);
+        let mut attr = basic_file_stat(&self.basic);
+        attr.st_size = 0;
         Ok(attr)
     }
 

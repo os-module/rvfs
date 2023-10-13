@@ -75,6 +75,21 @@ pub enum VfsNodeType {
     Socket = 0o14,
 }
 
+impl From<char> for VfsNodeType {
+    fn from(value: char) -> Self {
+        match value {
+            '-' => Self::File,
+            'd' => Self::Dir,
+            'l' => Self::SymLink,
+            'c' => Self::CharDevice,
+            'b' => Self::BlockDevice,
+            'p' => Self::Fifo,
+            's' => Self::Socket,
+            _ => Self::Unknown,
+        }
+    }
+}
+
 impl VfsNodeType {
     /// Tests whether this node type represents a regular file.
     pub const fn is_file(self) -> bool {
