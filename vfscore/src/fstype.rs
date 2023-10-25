@@ -10,7 +10,7 @@ bitflags! {
          /// The file system requires a device.
          const REQUIRES_DEV = 0x1;
         /// The options provided when mounting are in binary form.
-         const BINARY_MOUNTDATA = 0x2;
+        const BINARY_MOUNTDATA = 0x2;
         /// The file system has a subtype. It is extracted from the name and passed in as a parameter.
         const HAS_SUBTYPE = 0x4;
          /// The file system can be mounted by userns root.
@@ -26,17 +26,11 @@ bitflags! {
     }
 }
 
-bitflags! {
-    pub struct MountFlags:u32{
-
-    }
-}
-
 pub trait VfsFsType: Send + Sync + DowncastSync {
     /// create a fs instance or return the old one if this fs only allow one instance
     fn mount(
         self: Arc<Self>,
-        flags: MountFlags,
+        flags: u32,
         dev: Option<Arc<dyn VfsInode>>,
         data: &[u8],
     ) -> VfsResult<Arc<dyn VfsDentry>>;
@@ -54,7 +48,7 @@ impl dyn VfsFsType {
     /// It likes [`VfsFsType::mount`], but it will not take ownership of `self`
     pub fn i_mount(
         self: &Arc<Self>,
-        flags: MountFlags,
+        flags: u32,
         dev: Option<Arc<dyn VfsInode>>,
         data: &[u8],
     ) -> VfsResult<Arc<dyn VfsDentry>> {
@@ -68,5 +62,5 @@ impl_downcast!(sync VfsFsType);
 pub struct VfsMountPoint {
     pub root: Arc<dyn VfsDentry>,
     pub mount_point: Weak<dyn VfsDentry>,
-    pub mnt_flags: MountFlags,
+    pub mnt_flags: u32,
 }

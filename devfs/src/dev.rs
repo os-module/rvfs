@@ -55,8 +55,8 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> VfsFile for DevFs
         self.real_dev()?.poll(event)
     }
 
-    fn ioctl(&self, cmd: u32, arg: u64) -> VfsResult<Option<u64>> {
-        self.real_dev()?.ioctl(cmd, arg)
+    fn ioctl(&self, _cmd: u32, _arg: usize) -> VfsResult<usize> {
+        self.real_dev()?.ioctl(_cmd, _arg)
     }
     fn flush(&self) -> VfsResult<()> {
         self.real_dev()?.flush()
@@ -71,6 +71,10 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for DevF
     fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
         let res = self.basic.sb.upgrade().ok_or(VfsError::Invalid);
         res.map(|sb| sb as Arc<dyn VfsSuperBlock>)
+    }
+
+    fn node_perm(&self) -> VfsNodePerm {
+        self.basic.inner.lock().perm
     }
 
     fn set_attr(&self, _attr: InodeAttr) -> VfsResult<()> {

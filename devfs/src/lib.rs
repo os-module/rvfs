@@ -10,7 +10,7 @@ use unifs::dentry::UniFsDentry;
 use unifs::inode::{UniFsInodeAttr, UniFsInodeSame};
 use unifs::{UniFs, UniFsSuperBlock, VfsRawMutex};
 use vfscore::dentry::VfsDentry;
-use vfscore::fstype::{FileSystemFlags, MountFlags, VfsFsType};
+use vfscore::fstype::{FileSystemFlags, VfsFsType};
 use vfscore::inode::VfsInode;
 use vfscore::superblock::VfsSuperBlock;
 use vfscore::utils::{VfsNodePerm, VfsTimeSpec};
@@ -32,7 +32,7 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> DevFs<T, R> {
 impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for DevFs<T, R> {
     fn mount(
         self: Arc<Self>,
-        _flags: MountFlags,
+        _flags: u32,
         _dev: Option<Arc<dyn VfsInode>>,
         _data: &[u8],
     ) -> VfsResult<Arc<dyn VfsDentry>> {

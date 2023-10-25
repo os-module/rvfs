@@ -9,10 +9,10 @@ use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use alloc::{vec};
+use alloc::{format, vec};
 use core::error::Error;
 use core::fmt::{write, Debug, Formatter, Write};
-use log::{error};
+use log::error;
 
 #[derive(Clone)]
 pub struct VfsPath {
@@ -98,10 +98,9 @@ impl VfsPath {
         self.path.is_empty()
     }
 
+    // todo！ open flags
     pub fn open(&self) -> VfsResult<Arc<dyn VfsDentry>> {
-        self.exists()?
-            .map(Ok)
-            .unwrap_or_else(|| Err(VfsError::NoEntry))
+        self.exists()
     }
 
     pub fn create_file(&self, perm: VfsNodePerm) -> VfsResult<Arc<dyn VfsDentry>> {
@@ -112,6 +111,7 @@ impl VfsPath {
         self.create(VfsNodeType::Dir, perm, "create dir")
     }
 
+    // todo! create flags
     fn create(
         &self,
         ty: VfsNodeType,
@@ -151,11 +151,6 @@ impl VfsPath {
     fn get_parent(&self, action: &str) -> VfsResult<Arc<dyn VfsDentry>> {
         let parent = self.parent();
         let parent = parent.exists()?;
-        if parent.is_none() {
-            error!("Could not {}, parent directory does not exist", action);
-            return Err(VfsError::NoEntry);
-        }
-        let parent = parent.unwrap();
         if !parent.inode()?.inode_type().is_dir() {
             error!("Could not {}, parent path is not a directory", action);
             return Err(VfsError::NotDir);
@@ -172,7 +167,7 @@ impl VfsPath {
             .unwrap_or_else(|| self.root())
     }
 
-    pub fn exists(&self) -> VfsResult<Option<Arc<dyn VfsDentry>>> {
+    pub fn exists(&self) -> VfsResult<Arc<dyn VfsDentry>> {
         let mut parent = self.fs.clone();
         let mut path = self.path.as_str();
         loop {
@@ -194,8 +189,8 @@ impl VfsPath {
                 // second, we find in inode cache or disk
                 let sub_inode = parent_inode.lookup(name)?;
                 if sub_inode.is_none() {
-                    // if we can't find the inode, we return None
-                    return Ok(None);
+                    // if we can't find the inode, we return Err
+                    return Err(VfsError::NoEntry);
                 }
                 // if we find the inode, we insert it into dentry cache
                 let sub_inode = sub_inode.unwrap();
@@ -211,7 +206,7 @@ impl VfsPath {
         }
         // resolve mount point
         let dentry = real_dentry(parent);
-        Ok(Some(dentry))
+        Ok(dentry)
     }
     pub fn filename(&self) -> String {
         let index = self.path.rfind('/').map(|x| x + 1).unwrap_or(0);
@@ -227,6 +222,31 @@ impl VfsPath {
             None | Some("") => None,
             _ => after.map(|x| x.to_string()),
         }
+    }
+
+    // todo! permission check
+    pub fn mount(&self, root: Arc<dyn VfsDentry>, mount_flag: u32) -> VfsResult<()> {
+        let dir = self.open()?;
+        let inode = dir.inode()?;
+        if !inode
+            .node_perm()
+            .contains(VfsNodePerm::GROUP_EXEC | VfsNodePerm::OTHER_EXEC | VfsNodePerm::OWNER_EXEC)
+        {
+            return Err(VfsError::PermissionDenied);
+        }
+        dir.to_mount_point(root, mount_flag)?;
+        Ok(())
+    }
+
+    pub fn umount(&self) -> VfsResult<()> {
+        let dir = self.open()?;
+        if !dir.is_mount_point() {
+            return Err(VfsError::Invalid);
+        }
+        let mnt = dir.mount_point().unwrap();
+        dir.clear_mount_point();
+        mnt.root.inode()?.get_super_block()?.sync_fs(false)?;
+        Ok(())
     }
 }
 
@@ -244,6 +264,20 @@ fn split_path(path: &str) -> (&str, Option<&str>) {
     trimmed_path.find('/').map_or((trimmed_path, None), |n| {
         (&trimmed_path[..n], Some(&trimmed_path[n + 1..]))
     })
+}
+const B: u64 = 1024;
+const KB: u64 = 1024 * 1024;
+const MB: u64 = 1024 * 1024 * 1024;
+const GB: u64 = 1024 * 1024 * 1024 * 1024;
+
+fn size_to_str(size: u64) -> String {
+    match size {
+        0..B => format!("{}B", size),
+        B..KB => format!("{}KB", size / B),
+        KB..MB => format!("{}MB", size / KB),
+        MB..GB => format!("{:.2}GB", size / MB),
+        _ => format!("{:.2}TB", size / GB),
+    }
 }
 
 pub fn print_fs_tree(
@@ -278,14 +312,14 @@ pub fn print_fs_tree(
                 prefix,
                 inode_type.as_char(),
                 rwx,
-                stat.st_size,
+                size_to_str(stat.st_size),
                 name,
                 option
             ),
         )
         .unwrap();
 
-        if inode_type == VfsNodeType::Dir {
+        if inode_type == VfsNodeType::Dir && name != "." && name != ".." {
             let d = root.find(&name);
             let sub_dt = if let Some(d) = d {
                 d
@@ -294,13 +328,8 @@ pub fn print_fs_tree(
 
                 root.i_insert(&name, d)?
             };
-            if !sub_dt.is_mount_point() {
-                print_fs_tree(output, sub_dt, prefix.clone() + "  ")?;
-            } else {
-                let mnt = sub_dt.mount_point().unwrap();
-                let new_root = mnt.root;
-                print_fs_tree(output, new_root, prefix.clone() + "  ")?;
-            }
+            let sub_dt = real_dentry(sub_dt);
+            print_fs_tree(output, sub_dt, prefix.clone() + "  ")?;
         }
         child = children.next();
     }
@@ -340,7 +369,7 @@ impl DirIter for Arc<dyn VfsInode> {
 #[cfg(test)]
 mod tests {
     use crate::dentry::VfsDentry;
-    use crate::fstype::{MountFlags, VfsMountPoint};
+    use crate::fstype::VfsMountPoint;
     use crate::inode::VfsInode;
     use crate::path::{split_path, VfsPath};
     use crate::VfsResult;
@@ -356,7 +385,7 @@ mod tests {
         fn to_mount_point(
             self: Arc<Self>,
             _sub_fs_root: Arc<dyn VfsDentry>,
-            _mount_flag: MountFlags,
+            _mount_flag: u32,
         ) -> VfsResult<()> {
             todo!()
         }
@@ -413,5 +442,13 @@ mod tests {
             foo.join("bar.txt").unwrap()
         );
         assert_eq!(path, foo.join("..").unwrap());
+    }
+
+    #[test]
+    fn test_path_filename() {
+        let path = VfsPath::new(Arc::new(FakeDentry));
+        assert_eq!(path.join("foo.txt").unwrap().filename(), "foo.txt");
+        assert_eq!(path.join("foo/bar.txt").unwrap().filename(), "bar.txt");
+        assert_eq!(path.join("/foo").unwrap().filename(), "foo");
     }
 }

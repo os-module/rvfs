@@ -43,8 +43,8 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> VfsFile for Dyn
         self.real_inode()?.poll(event)
     }
 
-    fn ioctl(&self, cmd: u32, arg: u64) -> VfsResult<Option<u64>> {
-        self.real_inode()?.ioctl(cmd, arg)
+    fn ioctl(&self, _cmd: u32, _arg: usize) -> VfsResult<usize> {
+        self.real_inode()?.ioctl(_cmd, _arg)
     }
     fn flush(&self) -> VfsResult<()> {
         self.real_inode()?.flush()
@@ -59,6 +59,10 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for Dy
     fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
         let res = self.basic.sb.upgrade().ok_or(VfsError::Invalid);
         res.map(|sb| sb as Arc<dyn VfsSuperBlock>)
+    }
+
+    fn node_perm(&self) -> VfsNodePerm {
+        self.basic.inner.lock().perm
     }
 
     fn set_attr(&self, _attr: InodeAttr) -> VfsResult<()> {

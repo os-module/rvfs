@@ -9,7 +9,7 @@ use std::error::Error;
 use std::ops::Index;
 use std::sync::Arc;
 use vfscore::error::VfsError;
-use vfscore::fstype::{MountFlags, VfsFsType};
+use vfscore::fstype::VfsFsType;
 use vfscore::path::VfsPath;
 use vfscore::utils::VfsNodeType;
 
@@ -43,8 +43,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let proc_dt = ramfs_root.i_insert("proc", proc_inode.clone())?;
     let dev_dt = ramfs_root.i_insert("dev", dev_inode.clone())?;
 
-    proc_dt.to_mount_point(procfs_root.clone(), MountFlags::empty())?;
-    dev_dt.to_mount_point(devfs_root.clone(), MountFlags::empty())?;
+    proc_dt.to_mount_point(procfs_root.clone(), 0)?;
+    dev_dt.to_mount_point(devfs_root.clone(), 0)?;
 
     let path = VfsPath::new(ramfs_root.clone());
     let test1_path = path.join("d1/test1.txt")?;

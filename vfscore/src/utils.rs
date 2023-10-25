@@ -2,7 +2,6 @@ use alloc::string::String;
 use bitflags::bitflags;
 bitflags! {
     pub struct VfsInodeMode: u32 {
-        // const NULL  = 0;
         /// Type
         const TYPE_MASK = 0o170000;
         /// FIFO
@@ -24,7 +23,8 @@ bitflags! {
         const SET_UID = 0o4000;
         /// Set-group-ID on execution.
         const SET_GID = 0o2000;
-
+        /// sticky bit
+        const STICKY = 0o1000;
         /// Read, write, execute/search by owner.
         const OWNER_MASK = 0o700;
         /// Read permission, owner.
@@ -285,6 +285,12 @@ impl From<VfsInodeMode> for VfsNodeType {
             VfsInodeMode::SOCKET => VfsNodeType::Socket,
             _ => panic!("Invalid inode type"),
         }
+    }
+}
+
+impl From<VfsInodeMode> for VfsNodePerm {
+    fn from(value: VfsInodeMode) -> Self {
+        VfsNodePerm::from_bits_truncate(value.bits() as u16)
     }
 }
 #[cfg(test)]

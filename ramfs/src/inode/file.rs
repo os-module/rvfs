@@ -63,7 +63,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsFile for RamFsFil
     fn poll(&self, _event: PollEvents) -> VfsResult<PollEvents> {
         todo!()
     }
-    fn ioctl(&self, _cmd: u32, _arg: u64) -> VfsResult<Option<u64>> {
+    fn ioctl(&self, _cmd: u32, _arg: usize) -> VfsResult<usize> {
         todo!()
     }
 }
@@ -72,6 +72,10 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsFi
     fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
         let res = self.basic.sb.upgrade().unwrap();
         Ok(res)
+    }
+
+    fn node_perm(&self) -> VfsNodePerm {
+        self.basic.inner.lock().perm
     }
 
     fn set_attr(&self, attr: InodeAttr) -> VfsResult<()> {

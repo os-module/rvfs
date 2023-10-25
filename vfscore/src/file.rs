@@ -20,7 +20,7 @@ pub trait VfsFile: Send + Sync + DowncastSync {
     fn poll(&self, _event: PollEvents) -> VfsResult<PollEvents> {
         Err(VfsError::NoSys)
     }
-    fn ioctl(&self, _cmd: u32, _arg: u64) -> VfsResult<Option<u64>> {
+    fn ioctl(&self, _cmd: u32, _arg: usize) -> VfsResult<usize> {
         Err(VfsError::NoSys)
     }
     /// Called by the close(2) system call to flush a file

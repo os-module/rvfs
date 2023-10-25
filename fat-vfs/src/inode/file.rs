@@ -4,6 +4,7 @@ use crate::*;
 use alloc::string::String;
 use alloc::sync::Weak;
 use fatfs::{Read, Seek, Write};
+use log::info;
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
@@ -12,10 +13,13 @@ use vfscore::utils::{FileStat, PollEvents, VfsNodePerm, VfsNodeType};
 use vfscore::VfsResult;
 
 pub struct FatFsFileInode<R: VfsRawMutex> {
+    #[allow(unused)]
     parent: Weak<Mutex<R, FatDir>>,
     file: Arc<Mutex<R, FatFile>>,
     attr: FatFsInodeSame<R>,
+    #[allow(unused)]
     name: String,
+    size: Mutex<R, u64>,
 }
 
 impl<R: VfsRawMutex + 'static> FatFsFileInode<R>
@@ -29,12 +33,26 @@ where
         name: String,
         perm: VfsNodePerm,
     ) -> Self {
+        let size = parent
+            .lock()
+            .iter()
+            .find(|x| {
+                x.as_ref()
+                    .is_ok_and(|x| x.is_file() && x.file_name() == name)
+            })
+            .map(|e| e.unwrap().len())
+            .unwrap_or(0);
+        info!("size: {}", size);
         Self {
             name,
             parent: Arc::downgrade(parent),
             file,
             attr: FatFsInodeSame::new(sb, perm),
+            size: Mutex::new(size),
         }
+    }
+    pub fn raw_file(&self) -> Arc<Mutex<R, FatFile>> {
+        self.file.clone()
     }
 }
 
@@ -46,8 +64,17 @@ impl<R: VfsRawMutex + 'static> VfsFile for FatFsFileInode<R> {
             file.seek(fatfs::SeekFrom::Start(offset))
                 .map_err(|_| VfsError::IoError)?;
         }
-        let len = file.read(buf).map_err(|_| VfsError::IoError)?;
-        Ok(len)
+        let mut buf = buf;
+        let mut count = 0;
+        while !buf.is_empty() {
+            let len = file.read(buf).map_err(|_| VfsError::IoError)?;
+            if len == 0 {
+                break;
+            }
+            count += len;
+            buf = &mut buf[len..];
+        }
+        Ok(count)
     }
     fn write_at(&self, offset: u64, buf: &[u8]) -> VfsResult<usize> {
         let mut file = self.file.lock();
@@ -56,8 +83,11 @@ impl<R: VfsRawMutex + 'static> VfsFile for FatFsFileInode<R> {
             file.seek(fatfs::SeekFrom::Start(offset))
                 .map_err(|_| VfsError::IoError)?;
         }
-        let len = file.write(buf).map_err(|_| VfsError::IoError)?;
-        Ok(len)
+        file.write_all(buf).map_err(|_| VfsError::NoSpace)?;
+        if offset + buf.len() as u64 > *self.size.lock() {
+            *self.size.lock() = offset + buf.len() as u64;
+        }
+        Ok(buf.len())
     }
     fn poll(&self, _event: PollEvents) -> VfsResult<PollEvents> {
         todo!()
@@ -76,28 +106,17 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsFileInode<R> {
         Ok(sb)
     }
 
+    fn node_perm(&self) -> VfsNodePerm {
+        self.attr.inner.lock().perm
+    }
+
     fn set_attr(&self, _attr: InodeAttr) -> VfsResult<()> {
-        todo!()
+        Ok(())
     }
 
     fn get_attr(&self) -> VfsResult<FileStat> {
         let attr = self.attr.inner.lock();
-        let parent = self.parent.upgrade().unwrap();
-        let find = parent.lock().iter().find(|x| {
-            if let Ok(d) = x {
-                d.is_file() && d.file_name() == self.name
-            } else {
-                false
-            }
-        });
-        if find.is_none() {
-            return Err(VfsError::IoError);
-        }
-        let find = find.unwrap();
-        if find.is_err() {
-            return Err(VfsError::IoError);
-        }
-        let len = find.unwrap().len();
+        let len = *self.size.lock();
         Ok(FileStat {
             st_dev: 0,
             st_ino: 1,
@@ -117,8 +136,20 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsFileInode<R> {
             unused: 0,
         })
     }
-
     fn inode_type(&self) -> VfsNodeType {
         VfsNodeType::File
+    }
+
+    fn truncate(&self, len: u64) -> VfsResult<()> {
+        let mut this_len = self.size.lock();
+        if *this_len == len {
+            return Ok(());
+        }
+        let mut file = self.file.lock();
+        file.seek(fatfs::SeekFrom::Start(len))
+            .map_err(|_| VfsError::IoError)?;
+        file.truncate().map_err(|_| VfsError::IoError)?;
+        *this_len = len;
+        Ok(())
     }
 }

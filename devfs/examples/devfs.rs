@@ -5,7 +5,7 @@ use std::error::Error;
 use std::sync::Arc;
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
-use vfscore::fstype::{MountFlags, VfsFsType};
+use vfscore::fstype::VfsFsType;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
 use vfscore::utils::{FileStat, VfsNodePerm, VfsNodeType, VfsTimeSpec};
@@ -30,7 +30,7 @@ impl DevKernelProvider for DevFsKernelProviderImpl {
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
     let devfs = Arc::new(DevFs::<_, Mutex<()>>::new(DevFsKernelProviderImpl));
-    let root_dt = devfs.clone().mount(MountFlags::empty(), None, &[])?;
+    let root_dt = devfs.clone().mount(0, None, &[])?;
     let root_inode = root_dt.inode()?;
     root_inode.create(
         "null",
@@ -102,6 +102,10 @@ impl VfsFile for NullDev {
 impl VfsInode for NullDev {
     fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
         todo!()
+    }
+
+    fn node_perm(&self) -> VfsNodePerm {
+        VfsNodePerm::empty()
     }
 
     fn set_attr(&self, _attr: InodeAttr) -> VfsResult<()> {

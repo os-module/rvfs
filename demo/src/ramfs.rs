@@ -2,7 +2,7 @@ use log::info;
 use std::error::Error;
 use std::sync::Arc;
 use vfscore::dentry::VfsDentry;
-use vfscore::fstype::{MountFlags, VfsFsType};
+use vfscore::fstype::VfsFsType;
 use vfscore::utils::{VfsNodePerm, VfsNodeType, VfsTimeSpec};
 
 #[derive(Clone)]
@@ -15,7 +15,7 @@ impl ramfs::KernelProvider for RamFsProviderImpl {
 }
 
 pub fn init_ramfs(ramfs: Arc<dyn VfsFsType>) -> Result<Arc<dyn VfsDentry>, Box<dyn Error>> {
-    let root_dt = ramfs.i_mount(MountFlags::empty(), None, &[])?;
+    let root_dt = ramfs.i_mount(0, None, &[])?;
     let root_inode = root_dt.inode()?;
     let f1 = root_inode.create(
         "f1.txt",

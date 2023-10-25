@@ -100,4 +100,8 @@ impl<T: Send + Sync + 'static, R: VfsRawMutex + 'static> UniFsDirInode<T, R> {
     pub fn inode_type(&self) -> VfsNodeType {
         VfsNodeType::Dir
     }
+
+    pub fn node_perm(&self) -> VfsNodePerm {
+        self.basic.inner.lock().perm
+    }
 }

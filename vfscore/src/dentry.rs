@@ -1,4 +1,4 @@
-use crate::fstype::{MountFlags, VfsMountPoint};
+use crate::fstype::VfsMountPoint;
 use crate::inode::VfsInode;
 use crate::VfsResult;
 use alloc::string::String;
@@ -13,7 +13,7 @@ pub trait VfsDentry: Send + Sync + DowncastSync {
     fn to_mount_point(
         self: Arc<Self>,
         sub_fs_root: Arc<dyn VfsDentry>,
-        mount_flag: MountFlags,
+        mount_flag: u32,
     ) -> VfsResult<()>;
     /// Get the inode of this dentry
     fn inode(&self) -> VfsResult<Arc<dyn VfsInode>>;
@@ -56,7 +56,7 @@ impl dyn VfsDentry {
     pub fn i_to_mount_point(
         self: &Arc<Self>,
         sub_fs_root: Arc<dyn VfsDentry>,
-        mount_flag: MountFlags,
+        mount_flag: u32,
     ) -> VfsResult<()> {
         self.clone().to_mount_point(sub_fs_root, mount_flag)
     }

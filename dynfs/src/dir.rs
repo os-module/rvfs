@@ -93,6 +93,11 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for Dy
     fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
         self.0.get_super_block()
     }
+
+    fn node_perm(&self) -> VfsNodePerm {
+        self.0.node_perm()
+    }
+
     fn create(
         &self,
         _name: &str,

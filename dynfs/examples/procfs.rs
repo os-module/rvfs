@@ -6,10 +6,10 @@ use std::error::Error;
 use std::sync::Arc;
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
-use vfscore::fstype::{MountFlags, VfsFsType};
+use vfscore::fstype::VfsFsType;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{FileStat, VfsNodeType, VfsTimeSpec};
+use vfscore::utils::{FileStat, VfsNodePerm, VfsNodeType, VfsTimeSpec};
 use vfscore::VfsResult;
 
 #[derive(Clone)]
@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         DynFsKernelProviderImpl,
         "procfs",
     ));
-    let root_dt = procfs.clone().mount(MountFlags::empty(), None, &[])?;
+    let root_dt = procfs.clone().mount(0, None, &[])?;
     let root_inode = root_dt.inode()?;
 
     // Procfs don't support to create file/dir at runtime
@@ -102,6 +102,10 @@ impl VfsFile for ProcessInfo {
 impl VfsInode for ProcessInfo {
     fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
         todo!()
+    }
+
+    fn node_perm(&self) -> VfsNodePerm {
+        VfsNodePerm::empty()
     }
 
     fn set_attr(&self, _attr: InodeAttr) -> VfsResult<()> {

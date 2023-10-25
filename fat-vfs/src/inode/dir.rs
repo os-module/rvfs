@@ -4,7 +4,8 @@ use crate::*;
 use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
 use alloc::sync::Weak;
-use fatfs::Error;
+use fatfs::{Error, Seek};
+
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
@@ -20,7 +21,7 @@ pub struct FatFsDirInode<R: VfsRawMutex> {
     inode_cache: Mutex<R, BTreeMap<String, Arc<dyn VfsInode>>>,
 }
 
-impl<R: VfsRawMutex> FatFsDirInode<R> {
+impl<R: VfsRawMutex + 'static> FatFsDirInode<R> {
     pub fn new(
         parent: &Arc<Mutex<R, FatDir>>,
         dir: Arc<Mutex<R, FatDir>>,
@@ -37,11 +38,41 @@ impl<R: VfsRawMutex> FatFsDirInode<R> {
 
     fn delete_file(&self, name: &str, ty: VfsNodeType) -> VfsResult<()> {
         let mut inode_cache = self.inode_cache.lock();
-        if let Some((_, inode)) = inode_cache.iter().find(|(k, _)| *k == name) {
-            assert_eq!(inode.inode_type(), ty);
-            inode_cache.remove(name);
-        }
         let dir = self.dir.lock();
+        let file = if let Some((_, inode)) = inode_cache.iter().find(|(k, _)| *k == name) {
+            assert_eq!(inode.inode_type(), ty);
+            let inode = inode_cache.remove(name).unwrap();
+            let r = inode
+                .downcast_arc::<FatFsFileInode<R>>()
+                .map_err(|_| VfsError::Invalid)?;
+            Some(r.raw_file())
+        } else {
+            None
+        };
+        if ty == VfsNodeType::File {
+            let action = |file: &mut FatFile| -> VfsResult<()> {
+                file.seek(fatfs::SeekFrom::Start(0))
+                    .map_err(|_| VfsError::IoError)?;
+                file.truncate().map_err(|_| VfsError::IoError)?;
+                Ok(())
+            };
+            match file {
+                Some(f) => action(&mut f.lock()),
+                None => {
+                    let mut file = dir.open_file(name).map_err(|e| match e {
+                        Error::NotFound | Error::InvalidInput => VfsError::NoEntry,
+                        _ => VfsError::IoError,
+                    })?;
+                    action(&mut file)
+                }
+            }?;
+        }
+        if ty == VfsNodeType::Dir {
+            let _dir = dir.open_dir(name).map_err(|e| match e {
+                Error::NotFound | Error::InvalidInput => VfsError::NoEntry,
+                _ => VfsError::IoError,
+            })?;
+        }
         dir.remove(name).map_err(|e| match e {
             Error::NotFound | Error::InvalidInput => VfsError::NoEntry,
             _ => VfsError::IoError,
@@ -81,6 +112,11 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
         let sb = self.attr.sb.upgrade().unwrap();
         Ok(sb)
     }
+
+    fn node_perm(&self) -> VfsNodePerm {
+        self.attr.inner.lock().perm
+    }
+
     fn create(
         &self,
         name: &str,
@@ -163,6 +199,7 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
             _ => VfsError::IoError,
         })?;
         let file = Arc::new(Mutex::new(file));
+        drop(dir);
         let inode = FatFsFileInode::new(
             &self.dir,
             file,

@@ -9,10 +9,11 @@ use std::os::unix::fs::{FileExt, MetadataExt};
 use std::sync::Arc;
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
-use vfscore::fstype::{MountFlags, VfsFsType};
+use vfscore::fstype::VfsFsType;
 use vfscore::inode::{InodeAttr, VfsInode};
+use vfscore::path::print_fs_tree;
 use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{FileStat, VfsNodeType, VfsTimeSpec};
+use vfscore::utils::{FileStat, VfsNodePerm, VfsNodeType, VfsTimeSpec};
 use vfscore::VfsResult;
 
 #[derive(Clone)]
@@ -20,6 +21,15 @@ struct ProviderImpl;
 impl FatFsProvider for ProviderImpl {
     fn current_time(&self) -> VfsTimeSpec {
         VfsTimeSpec::new(0, 0)
+    }
+}
+
+struct FakeWriter;
+
+impl core::fmt::Write for FakeWriter {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        print!("{}", s);
+        Ok(())
     }
 }
 
@@ -40,45 +50,95 @@ fn main() -> Result<(), Box<dyn Error>> {
         let fs = fatfs::FileSystem::new(buf_file, fatfs::FsOptions::new()).unwrap();
         let root_dir = fs.root_dir();
         let _file = root_dir.create_file("root.txt").unwrap();
-
-        root_dir.iter().for_each(|x| {
-            let name = x.unwrap().file_name();
-            println!("{:?}", name);
-        });
-
+        // /
+        // |-- root.txt
         fs.unmount().unwrap();
     }
 
     let fatfs = Arc::new(FatFs::<_, Mutex<()>>::new(ProviderImpl));
-    let root = fatfs.clone().mount(
-        MountFlags::empty(),
-        Some(Arc::new(DeviceInode::new(file.clone()))),
-        &[],
-    )?;
+    let root = fatfs
+        .clone()
+        .mount(0, Some(Arc::new(DeviceInode::new(file.clone()))), &[])?;
     assert_eq!(fatfs.fs_name(), "fatfs");
 
     let _d1 = root
         .inode()?
         .create("d1", VfsNodeType::Dir, "rwxrwxrwx".into(), None)?;
-    let _f1 = root
+    let f1 = root
         .inode()?
         .create("f1", VfsNodeType::File, "rwxrwxrwx".into(), None)?;
 
-    println!("root dir: ");
-    // readdir
-    let mut index = 0;
+    let f2 = root
+        .inode()?
+        .create("f2", VfsNodeType::File, "rwxrwxrwx".into(), None)?;
+
+    let f3 = root
+        .inode()?
+        .create("f3", VfsNodeType::File, "rwxrwxrwx".into(), None)?;
+
+    let mut offset = 0;
+    let mut buf = [0u8; 1024];
+    let mut data = 1;
     loop {
-        let dir_entry = root.inode()?.readdir(index)?;
-        if dir_entry.is_none() {
+        buf.fill(data);
+        let w = f1.write_at(offset, &buf)?;
+        assert_eq!(w, 1024);
+        offset += w as u64;
+        data = (data + 1) % 255;
+        if offset >= 1024 * 1024 * 60 {
             break;
-        }
-        let dir_entry = dir_entry.unwrap();
-        println!("{:?}", dir_entry);
-        index += 1;
+        } // 30MB
+    }
+    f1.flush()?;
+    root.inode()?.unlink("f1")?;
+    println!("unlink f1");
+    offset = 0;
+    data = 1;
+    loop {
+        buf.fill(data);
+        let w = f2
+            .write_at(offset, &buf)
+            .map_err(|e| match e {
+                VfsError::NoSpace => println!("disk no space, offset: {}MB", offset / 1024 / 1024),
+                e => println!("error: {:?}", e),
+            })
+            .unwrap();
+        assert_eq!(w, 1024);
+        offset += w as u64;
+        data = (data + 1) % 255;
+        if offset >= 1024 * 1024 * 60 {
+            break;
+        } // 60MB
     }
 
+    println!("write 60MB data to f2");
+    buf.fill(0);
+    let r = f2.read_at(1024, &mut buf)?;
+    assert_eq!(r, 1024);
+    assert_eq!(buf, [2u8; 1024]);
+    f2.flush()?;
+
+    println!("read 1024 bytes from f2");
+
+    f3.truncate(10)?;
+
+    let w = f3.write_at(10, &[1u8; 10])?;
+    assert_eq!(w, 10);
+    f3.flush()?;
+    let stat = f3.get_attr()?;
+    assert_eq!(stat.st_size, 20);
+
+    println!("root dir: ");
+    // /
+    // |-- root.txt
+    // |--d1
+    //    |--.
+    //    |--..
+    // |--f2
+    // |--f3
+    print_fs_tree(&mut FakeWriter, root.clone(), "".to_string())?;
     let sb = root.inode()?.get_super_block()?;
-    fatfs.kill_sb(sb)?;
+    fatfs.kill_sb(sb)?; //like unmount up
 
     {
         // reset file
@@ -87,8 +147,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         let buf_file = BufStream::new(file.clone());
         let fs = fatfs::FileSystem::new(buf_file, fatfs::FsOptions::new()).unwrap();
         let root_dir = fs.root_dir();
-        let _file = root_dir.create_file("root.txt").unwrap();
-
         root_dir.iter().for_each(|x| {
             let name = x.unwrap().file_name();
             println!("{:?}", name);
@@ -189,6 +247,10 @@ impl VfsFile for DeviceInode {
 impl VfsInode for DeviceInode {
     fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
         todo!()
+    }
+
+    fn node_perm(&self) -> VfsNodePerm {
+        VfsNodePerm::empty()
     }
 
     fn set_attr(&self, _attr: InodeAttr) -> VfsResult<()> {

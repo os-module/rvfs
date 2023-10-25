@@ -50,6 +50,10 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsSy
         Ok(res)
     }
 
+    fn node_perm(&self) -> VfsNodePerm {
+        self.basic.inner.lock().perm
+    }
+
     fn readlink(&self, buf: &mut [u8]) -> VfsResult<usize> {
         let inner = self.inner.lock();
         let len = inner.as_bytes().len();

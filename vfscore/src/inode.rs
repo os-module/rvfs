@@ -6,7 +6,6 @@ use crate::VfsResult;
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-// use downcast::{downcast_sync, AnySync};
 use downcast_rs::{impl_downcast, DowncastSync};
 pub struct InodeAttr {
     /// File mode.
@@ -25,6 +24,9 @@ pub struct InodeAttr {
 pub trait VfsInode: DowncastSync + VfsFile {
     /// Get the super block of this dentry
     fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>>;
+
+    /// Get the permission of this inode
+    fn node_perm(&self) -> VfsNodePerm;
 
     /// Create a new node with the given `path` in the directory
     fn create(
@@ -73,6 +75,9 @@ pub trait VfsInode: DowncastSync + VfsFile {
         Err(VfsError::NoSys)
     }
     fn inode_type(&self) -> VfsNodeType;
+    fn truncate(&self, _len: u64) -> VfsResult<()> {
+        Err(VfsError::NoSys)
+    }
 }
 
 impl_downcast!(sync  VfsInode);

@@ -48,6 +48,11 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
     fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
         self.inode.get_super_block()
     }
+
+    fn node_perm(&self) -> VfsNodePerm {
+        self.inode.node_perm()
+    }
+
     fn create(
         &self,
         name: &str,

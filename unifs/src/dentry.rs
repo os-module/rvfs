@@ -4,7 +4,7 @@ use alloc::string::{String, ToString};
 use alloc::sync::{Arc, Weak};
 use vfscore::dentry::VfsDentry;
 use vfscore::error::VfsError;
-use vfscore::fstype::{MountFlags, VfsMountPoint};
+use vfscore::fstype::VfsMountPoint;
 use vfscore::inode::VfsInode;
 use vfscore::utils::VfsNodeType;
 use vfscore::VfsResult;
@@ -47,7 +47,7 @@ impl<R: VfsRawMutex + 'static> VfsDentry for UniFsDentry<R> {
     fn to_mount_point(
         self: Arc<Self>,
         sub_fs_root: Arc<dyn VfsDentry>,
-        mount_flag: MountFlags,
+        mount_flag: u32,
     ) -> VfsResult<()> {
         let point = self as Arc<dyn VfsDentry>;
         let mnt = VfsMountPoint {
