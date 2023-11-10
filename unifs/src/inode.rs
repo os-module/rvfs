@@ -1,10 +1,10 @@
 use crate::UniFsSuperBlock;
 use crate::*;
-use alloc::string::String;
+use alloc::string::{String, ToString};
 use alloc::sync::Weak;
 use alloc::vec::Vec;
 use vfscore::inode::InodeAttr;
-use vfscore::utils::{FileStat, VfsDirEntry, VfsNodePerm, VfsNodeType};
+use vfscore::utils::{VfsDirEntry, VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime};
 
 pub struct UniFsInodeSame<T: Send + Sync, R: VfsRawMutex> {
     pub sb: Weak<UniFsSuperBlock<R>>,
@@ -21,9 +21,11 @@ pub struct UniFsInodeAttr {
     pub perm: VfsNodePerm,
 }
 
-pub fn basic_file_stat<T: Send + Sync, R: VfsRawMutex>(basic: &UniFsInodeSame<T, R>) -> FileStat {
+pub fn basic_file_stat<T: Send + Sync, R: VfsRawMutex>(
+    basic: &UniFsInodeSame<T, R>,
+) -> VfsFileStat {
     let inner = basic.inner.lock();
-    FileStat {
+    VfsFileStat {
         st_dev: 0,
         st_ino: basic.inode_number,
         st_mode: inner.perm.bits() as u32,
@@ -93,7 +95,7 @@ impl<T: Send + Sync + 'static, R: VfsRawMutex + 'static> UniFsDirInode<T, R> {
         Ok(())
     }
     #[inline]
-    pub fn get_attr(&self) -> VfsResult<FileStat> {
+    pub fn get_attr(&self) -> VfsResult<VfsFileStat> {
         Ok(basic_file_stat(&self.basic))
     }
     #[inline]
@@ -103,5 +105,64 @@ impl<T: Send + Sync + 'static, R: VfsRawMutex + 'static> UniFsDirInode<T, R> {
 
     pub fn node_perm(&self) -> VfsNodePerm {
         self.basic.inner.lock().perm
+    }
+
+    pub fn update_time(&self, time: VfsTime, now: VfsTimeSpec) -> VfsResult<()> {
+        let mut inner = self.basic.inner.lock();
+        match time {
+            VfsTime::AccessTime(t) => inner.atime = t,
+            VfsTime::ModifiedTime(t) => inner.mtime = t,
+        }
+        inner.ctime = now;
+        Ok(())
+    }
+    pub fn rename_to(
+        &self,
+        old_name: &str,
+        new_parent: &UniFsDirInode<T, R>,
+        new_name: &str,
+        flag: VfsRenameFlag,
+    ) -> VfsResult<()> {
+        let old_inode_index = self
+            .children
+            .lock()
+            .iter()
+            .position(|(n, _)| n == old_name)
+            .ok_or(VfsError::NoEntry)?;
+        let new_inode = new_parent;
+        let sb = self
+            .get_super_block()?
+            .downcast_arc::<UniFsSuperBlock<R>>()
+            .map_err(|_| VfsError::Invalid)?;
+        if flag.contains(VfsRenameFlag::RENAME_EXCHANGE) {
+            // the old_name and new_name must exist
+            let new_inode_index = new_inode
+                .children
+                .lock()
+                .iter()
+                .position(|(n, _)| n == new_name)
+                .ok_or(VfsError::NoEntry)?;
+            let mut this = self.children.lock();
+            let mut new = new_inode.children.lock();
+
+            let (_, old_inode_number) = this.remove(old_inode_index);
+            let (_, new_inode_number) = new.remove(new_inode_index);
+
+            this.push((new_name.to_string(), new_inode_number));
+            new.push((old_name.to_string(), old_inode_number));
+        } else {
+            let mut this = self.children.lock();
+            let mut new = new_inode.children.lock();
+            let (_, old_inode_number) = this.remove(old_inode_index);
+            // the new_name may exist or not
+            // we only need to delete it if it exists
+            let new_inode_index = new.iter().position(|(n, _)| n == new_name);
+            if let Some(new_inode_index) = new_inode_index {
+                let (_, new_inode_number) = new.remove(new_inode_index);
+                sb.remove_inode(new_inode_number);
+            }
+            this.push((new_name.to_string(), old_inode_number));
+        }
+        Ok(())
     }
 }

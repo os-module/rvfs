@@ -1,13 +1,17 @@
 use crate::{DevInodeSameNew, DevKernelProvider, UniFsSuperBlock};
+use alloc::string::String;
 use alloc::sync::Arc;
+use alloc::vec::Vec;
 use unifs::inode::{basic_file_stat, UniFsInodeSame};
 use unifs::*;
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{FileStat, PollEvents, VfsNodePerm, VfsNodeType};
-use vfscore::VfsResult;
+use vfscore::utils::{
+    VfsFileStat, VfsNodePerm, VfsNodeType, VfsPollEvents, VfsRenameFlag, VfsTime, VfsTimeSpec,
+};
+use vfscore::{impl_file_inode_default, VfsResult};
 
 pub struct DevFsDevInode<T: Send + Sync, R: VfsRawMutex> {
     rdev: u64,
@@ -51,7 +55,7 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> VfsFile for DevFs
     fn write_at(&self, offset: u64, buf: &[u8]) -> VfsResult<usize> {
         self.real_dev()?.write_at(offset, buf)
     }
-    fn poll(&self, event: PollEvents) -> VfsResult<PollEvents> {
+    fn poll(&self, event: VfsPollEvents) -> VfsResult<VfsPollEvents> {
         self.real_dev()?.poll(event)
     }
 
@@ -81,13 +85,32 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for DevF
         todo!()
     }
 
-    fn get_attr(&self) -> VfsResult<FileStat> {
+    fn get_attr(&self) -> VfsResult<VfsFileStat> {
         let mut attr = basic_file_stat(&self.basic);
         attr.st_size = 0;
         Ok(attr)
     }
 
+    fn list_xattr(&self) -> VfsResult<Vec<String>> {
+        Err(VfsError::NoSys)
+    }
+
+    impl_file_inode_default!();
+
     fn inode_type(&self) -> VfsNodeType {
         self.ty
+    }
+
+    fn truncate(&self, _len: u64) -> VfsResult<()> {
+        Err(VfsError::NoSys)
+    }
+
+    fn update_time(&self, time: VfsTime, now: VfsTimeSpec) -> VfsResult<()> {
+        match time {
+            VfsTime::ModifiedTime(t) => self.basic.inner.lock().mtime = t,
+            VfsTime::AccessTime(t) => self.basic.inner.lock().atime = t,
+        }
+        self.basic.inner.lock().ctime = now;
+        Ok(())
     }
 }

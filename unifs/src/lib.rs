@@ -6,7 +6,9 @@ pub mod inode;
 
 extern crate alloc;
 
+use crate::dentry::UniFsDentry;
 use alloc::collections::BTreeMap;
+use alloc::string::String;
 use alloc::sync::{Arc, Weak};
 use core::sync::atomic::{AtomicU64, AtomicUsize};
 use log::info;
@@ -62,10 +64,11 @@ impl<T: Send + Sync, R: VfsRawMutex + 'static> UniFs<T, R> {
 
 pub struct UniFsSuperBlock<R: VfsRawMutex> {
     fs_type: Weak<dyn VfsFsType>,
-    pub root: lock_api::Mutex<R, Option<Arc<dyn VfsDentry>>>,
+    pub root: lock_api::Mutex<R, Option<Arc<dyn VfsInode>>>,
     pub inode_index: AtomicU64,
     pub inode_count: AtomicUsize,
     inode_cache: lock_api::Mutex<R, BTreeMap<u64, Arc<dyn VfsInode>>>,
+    pub mnt_info: lock_api::Mutex<R, BTreeMap<String, Arc<dyn VfsDentry>>>,
 }
 
 impl<R: VfsRawMutex + 'static> UniFsSuperBlock<R> {
@@ -77,6 +80,7 @@ impl<R: VfsRawMutex + 'static> UniFsSuperBlock<R> {
             inode_index: AtomicU64::new(0),
             inode_count: AtomicUsize::new(0),
             inode_cache: lock_api::Mutex::new(BTreeMap::new()),
+            mnt_info: lock_api::Mutex::new(BTreeMap::new()),
         })
     }
     pub fn insert_inode(&self, inode_number: u64, inode: Arc<dyn VfsInode>) {
@@ -90,6 +94,20 @@ impl<R: VfsRawMutex + 'static> UniFsSuperBlock<R> {
     pub fn get_inode(&self, inode_number: u64) -> Option<Arc<dyn VfsInode>> {
         let cache = self.inode_cache.lock();
         cache.get(&inode_number).cloned()
+    }
+    pub fn root_dentry(&self, ab_mnt: &str) -> VfsResult<Arc<dyn VfsDentry>> {
+        let mut mnt_info = self.mnt_info.lock();
+        let res = mnt_info.get(ab_mnt).cloned();
+        match res {
+            None => {
+                let parent = Weak::<UniFsDentry<R>>::new();
+                let inode = self.root.lock().clone().unwrap();
+                let new = Arc::new(UniFsDentry::<R>::root(inode, parent));
+                mnt_info.insert(ab_mnt.into(), new.clone());
+                Ok(new as Arc<dyn VfsDentry>)
+            }
+            Some(x) => Ok(x),
+        }
     }
 }
 
@@ -123,7 +141,7 @@ impl<R: VfsRawMutex + 'static> VfsSuperBlock for UniFsSuperBlock<R> {
         self.fs_type.upgrade().unwrap()
     }
 
-    fn root_dentry(&self) -> VfsResult<Arc<dyn VfsDentry>> {
+    fn root_inode(&self) -> VfsResult<Arc<dyn VfsInode>> {
         let lock = self.root.lock();
         if let Some(root) = &*lock {
             Ok(root.clone())

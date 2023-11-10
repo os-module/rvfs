@@ -2,6 +2,7 @@ use super::*;
 use crate::device::FatDevice;
 use crate::inode::FatFsDirInode;
 use alloc::collections::BTreeMap;
+use alloc::string::String;
 use alloc::sync::Weak;
 use fatfs::FileSystem;
 use log::info;
@@ -33,36 +34,35 @@ impl<T: FatFsProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for FatFs<T
     fn mount(
         self: Arc<Self>,
         _flags: u32,
+        ab_mnt: &str,
         dev: Option<Arc<dyn VfsInode>>,
         _data: &[u8],
     ) -> VfsResult<Arc<dyn VfsDentry>> {
-        if dev.is_none() {
-            return Err(VfsError::NoDev);
-        }
-        let dev = dev.unwrap();
+        let dev = dev.ok_or(VfsError::Invalid)?;
         if dev.inode_type() != VfsNodeType::BlockDevice {
             return Err(VfsError::Invalid);
         }
-        let dev_ino = dev.get_attr()?.st_ino;
-
+        let dev_ino = dev.get_attr()?.st_rdev;
+        // For same device, we only mount once, but we will return different dentry according to ab_mnt(absolute mount point)
         if let Some(sb) = self.fs_container.lock().get(&(dev_ino as usize)) {
-            return sb.root_dentry();
+            return sb.root_dentry(ab_mnt);
         }
         let fat_dev = FatDevice::new(dev);
-        let sb = FatFsSuperBlock::<R>::new(&(self.clone() as Arc<dyn VfsFsType>), fat_dev);
+        let sb = FatFsSuperBlock::<R>::new(&(self.clone() as Arc<dyn VfsFsType>), fat_dev, ab_mnt);
         // we use dev_ino as the key to store the superblock
         self.fs_container
             .lock()
             .insert(dev_ino as usize, sb.clone());
-        sb.root_dentry()
+        sb.root_dentry(ab_mnt)
     }
 
     fn kill_sb(&self, sb: Arc<dyn VfsSuperBlock>) -> VfsResult<()> {
         if let Ok(sb) = sb.downcast_arc::<FatFsSuperBlock<R>>() {
-            let dev_ino = sb.fat_dev.device_file.get_attr()?.st_ino;
+            let dev_ino = sb.fat_dev.device_file.get_attr()?.st_rdev;
             let sb = self.fs_container.lock().remove(&(dev_ino as usize));
             if let Some(sb) = sb {
-                sb.fs.unmount().map_err(|_| VfsError::IoError)?;
+                // todo!(call unmount)
+                sb.fat_dev.device_file.flush()?;
                 sb.fat_dev.device_file.fsync()?;
                 info!("fatfs: kill_sb: remove sb for dev {}", dev_ino);
                 Ok(())
@@ -86,12 +86,13 @@ impl<T: FatFsProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for FatFs<T
 pub struct FatFsSuperBlock<R: VfsRawMutex> {
     fat_dev: FatDevice,
     fs_type: Weak<dyn VfsFsType>,
-    root: Mutex<R, Option<Arc<dyn VfsDentry>>>,
+    root: Mutex<R, Option<Arc<dyn VfsInode>>>,
     fs: FileSystem<FatDevice, DefaultTimeProvider, LossyOemCpConverter>,
+    mnt_info: Mutex<R, BTreeMap<String, Arc<dyn VfsDentry>>>,
 }
 
 impl<R: VfsRawMutex + 'static> FatFsSuperBlock<R> {
-    pub fn new(fs_type: &Arc<dyn VfsFsType>, device: FatDevice) -> Arc<Self> {
+    pub fn new(fs_type: &Arc<dyn VfsFsType>, device: FatDevice, ab_mnt: &str) -> Arc<Self> {
         let fs = FileSystem::new(device.clone(), fatfs::FsOptions::new()).unwrap();
         let root_disk_dir = Arc::new(Mutex::new(fs.root_dir()));
         let sb = Arc::new(Self {
@@ -99,17 +100,32 @@ impl<R: VfsRawMutex + 'static> FatFsSuperBlock<R> {
             fs_type: Arc::downgrade(fs_type),
             root: Mutex::new(None),
             fs,
+            mnt_info: Mutex::new(BTreeMap::new()),
         });
-        let root_inode = FatFsDirInode::new(
+        let root_inode = Arc::new(FatFsDirInode::new(
             &root_disk_dir.clone(),
             root_disk_dir,
             &sb,
             "rwxrwxrwx".into(),
-        );
-        let root_inode = Arc::new(root_inode);
-        let root_dt = Arc::new(UniFsDentry::<R>::root(root_inode));
-        sb.root.lock().replace(root_dt);
+        ));
+        sb.root.lock().replace(root_inode.clone());
+        let parent = Weak::<UniFsDentry<R>>::new();
+        let root_dt = Arc::new(UniFsDentry::<R>::root(root_inode, parent));
+        sb.mnt_info.lock().insert(ab_mnt.into(), root_dt.clone());
         sb
+    }
+
+    pub fn root_dentry(&self, ab_mnt: &str) -> VfsResult<Arc<dyn VfsDentry>> {
+        self.mnt_info.lock().get(ab_mnt).map_or_else(
+            || {
+                let parent = Weak::<UniFsDentry<R>>::new();
+                let inode = self.root.lock().clone().unwrap();
+                let new = Arc::new(UniFsDentry::<R>::root(inode, parent));
+                self.mnt_info.lock().insert(ab_mnt.into(), new.clone());
+                Ok(new as Arc<dyn VfsDentry>)
+            },
+            |x| Ok(x.clone()),
+        )
     }
 }
 
@@ -149,7 +165,7 @@ impl<R: VfsRawMutex + 'static> VfsSuperBlock for FatFsSuperBlock<R> {
     fn fs_type(&self) -> Arc<dyn VfsFsType> {
         self.fs_type.upgrade().unwrap()
     }
-    fn root_dentry(&self) -> VfsResult<Arc<dyn VfsDentry>> {
+    fn root_inode(&self) -> VfsResult<Arc<dyn VfsInode>> {
         let root = self.root.lock().clone().unwrap();
         Ok(root)
     }

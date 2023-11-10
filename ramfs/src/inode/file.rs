@@ -1,13 +1,15 @@
 use super::*;
-use crate::KernelProvider;
+use crate::RamFsProvider;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use unifs::inode::basic_file_stat;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{FileStat, PollEvents, VfsNodePerm, VfsNodeType};
-use vfscore::VfsResult;
+use vfscore::utils::{
+    VfsFileStat, VfsNodePerm, VfsNodeType, VfsPollEvents, VfsRenameFlag, VfsTime, VfsTimeSpec,
+};
+use vfscore::{error::VfsError, impl_file_inode_default, VfsResult};
 pub struct RamFsFileInode<T: Send + Sync, R: VfsRawMutex> {
     basic: UniFsInodeSame<T, R>,
     inner: lock_api::Mutex<R, RamFsFileInodeInner>,
@@ -17,7 +19,7 @@ struct RamFsFileInodeInner {
     data: Vec<u8>,
 }
 
-impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsFileInode<T, R> {
+impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> RamFsFileInode<T, R> {
     pub fn new(
         sb: &Arc<UniFsSuperBlock<R>>,
         provider: T,
@@ -38,7 +40,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsFileInode<T, R>
     }
 }
 
-impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsFile for RamFsFileInode<T, R> {
+impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsFile for RamFsFileInode<T, R> {
     fn read_at(&self, offset: u64, buf: &mut [u8]) -> VfsResult<usize> {
         let inner = self.inner.lock();
         let size = inner.data.len() as u64;
@@ -60,7 +62,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsFile for RamFsFil
         dst.copy_from_slice(&buf[..dst.len()]);
         Ok(buf.len())
     }
-    fn poll(&self, _event: PollEvents) -> VfsResult<PollEvents> {
+    fn poll(&self, _event: VfsPollEvents) -> VfsResult<VfsPollEvents> {
         todo!()
     }
     fn ioctl(&self, _cmd: u32, _arg: usize) -> VfsResult<usize> {
@@ -68,7 +70,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsFile for RamFsFil
     }
 }
 
-impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsFileInode<T, R> {
+impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsFileInode<T, R> {
     fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
         let res = self.basic.sb.upgrade().unwrap();
         Ok(res)
@@ -83,7 +85,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsFi
         Ok(())
     }
 
-    fn get_attr(&self) -> VfsResult<FileStat> {
+    fn get_attr(&self) -> VfsResult<VfsFileStat> {
         let basic = &self.basic;
         let mut stat = basic_file_stat(basic);
         stat.st_size = self.inner.lock().data.len() as u64;
@@ -96,5 +98,24 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsFi
     }
     fn inode_type(&self) -> VfsNodeType {
         VfsNodeType::File
+    }
+
+    fn truncate(&self, len: u64) -> VfsResult<()> {
+        let mut inner = self.inner.lock();
+        if len < inner.data.len() as u64 {
+            inner.data.truncate(len as _);
+        } else {
+            inner.data.resize(len as _, 0);
+        }
+        Ok(())
+    }
+    impl_file_inode_default!();
+    fn update_time(&self, time: VfsTime, now: VfsTimeSpec) -> VfsResult<()> {
+        match time {
+            VfsTime::ModifiedTime(t) => self.basic.inner.lock().mtime = t,
+            VfsTime::AccessTime(t) => self.basic.inner.lock().atime = t,
+        }
+        self.basic.inner.lock().ctime = now;
+        Ok(())
     }
 }

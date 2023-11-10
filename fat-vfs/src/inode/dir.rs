@@ -4,14 +4,14 @@ use crate::*;
 use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
 use alloc::sync::Weak;
+use alloc::vec::Vec;
 use fatfs::{Error, Seek};
-
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{FileStat, VfsDirEntry, VfsNodePerm, VfsNodeType};
-use vfscore::VfsResult;
+use vfscore::utils::{VfsDirEntry, VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime};
+use vfscore::{impl_dir_inode_default, VfsResult};
 
 pub struct FatFsDirInode<R: VfsRawMutex> {
     #[allow(unused)]
@@ -126,7 +126,7 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
     ) -> VfsResult<Arc<dyn VfsInode>> {
         let mut inode_cache = self.inode_cache.lock();
         if inode_cache.contains_key(name) {
-            return Err(VfsError::FileExist);
+            return Err(VfsError::EExist);
         }
         match ty {
             VfsNodeType::Dir => {
@@ -175,41 +175,53 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
             return Ok(Some(inode.clone()));
         }
         let dir = self.dir.lock();
-        let new_dir = dir
-            .open_dir(name)
-            .map_err(|e| !matches!(e, Error::NotFound | Error::InvalidInput));
-        if new_dir.is_ok() {
-            let new_dir = new_dir.unwrap();
-            let new_dir = Arc::new(Mutex::new(new_dir));
-            let inode = FatFsDirInode::new(
+
+        let find = dir
+            .iter()
+            .find(|e| {
+                let entry = e.as_ref().unwrap();
+                let e_name = entry.file_name();
+                name == e_name
+            })
+            .ok_or(VfsError::NoEntry)?;
+        let entry = find.map_err(|_| VfsError::IoError)?;
+
+        if entry.is_dir() {
+            let new_dir = dir
+                .open_dir(name)
+                .map_err(|e| !matches!(e, Error::NotFound | Error::InvalidInput));
+            if new_dir.is_ok() {
+                let new_dir = new_dir.unwrap();
+                let new_dir = Arc::new(Mutex::new(new_dir));
+                let inode = FatFsDirInode::new(
+                    &self.dir,
+                    new_dir,
+                    &self.attr.sb.upgrade().unwrap(),
+                    VfsNodePerm::default_dir(),
+                );
+                let inode = Arc::new(inode);
+                inode_cache.insert(name.to_string(), inode.clone());
+                return Ok(Some(inode));
+            }
+            Err(VfsError::IoError)
+        } else {
+            let file = dir.open_file(name).map_err(|e| match e {
+                Error::NotFound | Error::InvalidInput => VfsError::NoEntry,
+                _ => VfsError::IoError,
+            })?;
+            let file = Arc::new(Mutex::new(file));
+            drop(dir);
+            let inode = FatFsFileInode::new(
                 &self.dir,
-                new_dir,
+                file,
                 &self.attr.sb.upgrade().unwrap(),
-                VfsNodePerm::default_dir(),
+                name.to_string(),
+                VfsNodePerm::default_file(),
             );
             let inode = Arc::new(inode);
             inode_cache.insert(name.to_string(), inode.clone());
-            return Ok(Some(inode));
+            Ok(Some(inode))
         }
-        if new_dir.err().unwrap() {
-            return Err(VfsError::IoError);
-        }
-        let file = dir.open_file(name).map_err(|e| match e {
-            Error::NotFound | Error::InvalidInput => VfsError::NoEntry,
-            _ => VfsError::IoError,
-        })?;
-        let file = Arc::new(Mutex::new(file));
-        drop(dir);
-        let inode = FatFsFileInode::new(
-            &self.dir,
-            file,
-            &self.attr.sb.upgrade().unwrap(),
-            name.to_string(),
-            VfsNodePerm::default_file(),
-        );
-        let inode = Arc::new(inode);
-        inode_cache.insert(name.to_string(), inode.clone());
-        Ok(Some(inode))
     }
 
     fn rmdir(&self, name: &str) -> VfsResult<()> {
@@ -219,10 +231,10 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
         Ok(())
     }
 
-    fn get_attr(&self) -> VfsResult<FileStat> {
+    fn get_attr(&self) -> VfsResult<VfsFileStat> {
         let attr = self.attr.inner.lock();
 
-        Ok(FileStat {
+        Ok(VfsFileStat {
             st_dev: 0,
             st_ino: 1,
             st_mode: attr.perm.bits() as u32,
@@ -244,5 +256,54 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
 
     fn inode_type(&self) -> VfsNodeType {
         VfsNodeType::Dir
+    }
+
+    fn rename_to(
+        &self,
+        old_name: &str,
+        new_parent: Arc<dyn VfsInode>,
+        new_name: &str,
+        flag: VfsRenameFlag,
+    ) -> VfsResult<()> {
+        let dir = self.dir.lock();
+        if flag.contains(VfsRenameFlag::RENAME_EXCHANGE) {
+            return Err(VfsError::NoSys);
+        } else {
+            let new_parent = new_parent
+                .downcast_arc::<FatFsDirInode<R>>()
+                .map_err(|_| VfsError::Invalid)?;
+            dir.rename(old_name, &*new_parent.dir.lock(), new_name)
+                .map_err(|e| match e {
+                    Error::NotFound => VfsError::NoEntry,
+                    Error::AlreadyExists => VfsError::EExist,
+                    _ => VfsError::IoError,
+                })?;
+            self.inode_cache.lock().remove(old_name);
+            new_parent.inode_cache.lock().remove(new_name);
+        }
+        Ok(())
+    }
+
+    impl_dir_inode_default!();
+
+    fn link(&self, _name: &str, _src: Arc<dyn VfsInode>) -> VfsResult<Arc<dyn VfsInode>> {
+        Err(VfsError::NoSys)
+    }
+
+    fn symlink(&self, _name: &str, _sy_name: &str) -> VfsResult<Arc<dyn VfsInode>> {
+        Err(VfsError::NoSys)
+    }
+
+    fn list_xattr(&self) -> VfsResult<Vec<String>> {
+        Err(VfsError::NoSys)
+    }
+    fn update_time(&self, time: VfsTime, now: VfsTimeSpec) -> VfsResult<()> {
+        let mut attr = self.attr.inner.lock();
+        match time {
+            VfsTime::AccessTime(t) => attr.atime = t,
+            VfsTime::ModifiedTime(t) => attr.mtime = t,
+        }
+        attr.ctime = now;
+        Ok(())
     }
 }

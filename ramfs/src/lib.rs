@@ -4,8 +4,8 @@ extern crate alloc;
 
 mod inode;
 
-use alloc::collections::BTreeMap;
-use alloc::sync::Arc;
+use alloc::sync::{Arc, Weak};
+use alloc::vec::Vec;
 pub use inode::*;
 use log::info;
 use unifs::dentry::UniFsDentry;
@@ -18,32 +18,33 @@ use vfscore::superblock::VfsSuperBlock;
 use vfscore::utils::{VfsNodePerm, VfsTimeSpec};
 use vfscore::VfsResult;
 
-pub trait KernelProvider: Send + Sync + Clone {
+pub trait RamFsProvider: Send + Sync + Clone {
     fn current_time(&self) -> VfsTimeSpec;
 }
 
 pub struct RamFs<T: Send + Sync, R: VfsRawMutex> {
     provider: T,
-    fs_container: lock_api::Mutex<R, BTreeMap<usize, UniFs<T, R>>>,
+    fs_container: lock_api::Mutex<R, Vec<Arc<UniFs<T, R>>>>,
 }
 
-impl<T: KernelProvider, R: VfsRawMutex + 'static> RamFs<T, R> {
+impl<T: RamFsProvider, R: VfsRawMutex + 'static> RamFs<T, R> {
     pub fn new(provider: T) -> Self {
         Self {
             provider,
-            fs_container: lock_api::Mutex::new(BTreeMap::new()),
+            fs_container: lock_api::Mutex::new(Vec::new()),
         }
     }
 }
 
-impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for RamFs<T, R> {
+impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for RamFs<T, R> {
     fn mount(
         self: Arc<Self>,
         _flags: u32,
+        _ab_mnt: &str,
         _dev: Option<Arc<dyn VfsInode>>,
         _data: &[u8],
     ) -> VfsResult<Arc<dyn VfsDentry>> {
-        let unifs = UniFs::<T, R>::new("ramfs", self.provider.clone());
+        let unifs = Arc::new(UniFs::<T, R>::new("ramfs", self.provider.clone()));
         let sb = UniFsSuperBlock::new(&(self.clone() as Arc<dyn VfsFsType>));
         let root = Arc::new(RamFsDirInode::new(
             &sb,
@@ -51,26 +52,27 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for RamFs<
             0,
             VfsNodePerm::from_bits_truncate(0o755),
         ));
-        let root_dentry = Arc::new(UniFsDentry::<R>::root(root));
+        let parent = Weak::<UniFsDentry<R>>::new();
         sb.inode_index
             .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
         sb.inode_count
             .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
-        sb.root.lock().replace(root_dentry.clone());
-        let sb_ptr = Arc::as_ptr(&sb) as usize;
+        sb.root.lock().replace(root.clone());
         unifs.sb.lock().replace(sb);
-
-        self.fs_container.lock().insert(sb_ptr, unifs);
-        Ok(root_dentry)
+        self.fs_container.lock().push(unifs);
+        Ok(Arc::new(UniFsDentry::<R>::root(root, parent)))
     }
 
     fn kill_sb(&self, sb: Arc<dyn VfsSuperBlock>) -> VfsResult<()> {
         let sb = sb
             .downcast_arc::<UniFsSuperBlock<R>>()
             .map_err(|_| VfsError::Invalid)?;
-        let sb_ptr = Arc::as_ptr(&sb) as usize;
-        if self.fs_container.lock().remove(&sb_ptr).is_some() {
+        if let Some((index, _)) = self.fs_container.lock().iter().enumerate().find(|(_, fs)| {
+            let isb = fs.sb.lock();
+            isb.is_some() && Arc::ptr_eq(isb.as_ref().unwrap(), &sb)
+        }) {
             info!("kill ramfs sb success");
+            self.fs_container.lock().remove(index);
             Ok(())
         } else {
             Err(VfsError::Invalid)

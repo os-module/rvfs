@@ -28,9 +28,15 @@ bitflags! {
 
 pub trait VfsFsType: Send + Sync + DowncastSync {
     /// create a fs instance or return the old one if this fs only allow one instance
+    ///
+    /// The [ab_mnt](VfsFsType::mount) is [absolute mount point](), which means it starts with `/`. Usually it can be used to
+    /// return different root dentry for different mount point.
+    ///
+    /// The [dev](VfsFsType::mount) is the device inode of this filesystem. It can be None if this filesystem doesn't need a device.
     fn mount(
         self: Arc<Self>,
         flags: u32,
+        ab_mnt: &str,
         dev: Option<Arc<dyn VfsInode>>,
         data: &[u8],
     ) -> VfsResult<Arc<dyn VfsDentry>>;
@@ -49,10 +55,11 @@ impl dyn VfsFsType {
     pub fn i_mount(
         self: &Arc<Self>,
         flags: u32,
+        ab_mnt: &str,
         dev: Option<Arc<dyn VfsInode>>,
         data: &[u8],
     ) -> VfsResult<Arc<dyn VfsDentry>> {
-        self.clone().mount(flags, dev, data)
+        self.clone().mount(flags, ab_mnt, dev, data)
     }
 }
 

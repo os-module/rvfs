@@ -91,8 +91,6 @@ Inode在内存中也存在缓存，除了可以加速访问之外，还可以完
 
 
 
-
-
 ### unlink
 
 `unlink`接口位于`VfsInode`中，其功能是用于删除一个文件的硬链接计数。但是这个删除不会导致系统中所有对象都被删除。具体而言，unlink的主要执行流程如下:
@@ -116,3 +114,28 @@ Linux中有两个用于内存文件系统的主要选项：ramfs和tmpfs。这�
    - 当RAM用尽时，tmpfs可以将数据写入交换空间，从而避免系统崩溃。
 
 总之，ramfs是一个非常基本的内存文件系统，而tmpfs更加灵活和适用于许多实际用途，因为它可以自动管理内存和交换空间。在实际应用中，通常更推荐使用tmpfs。
+
+
+
+### rename
+
+- If newpath already exists, it will be atomically replaced, so that there is no point at which another process attempting to access newpath will find it missing.
+- If oldpath and newpath are existing hard links referring to the same file, then rename() does nothing, and returns a success  status.
+-   oldpath can specify a directory.  In this case, newpath must  either not exist, or it must specify an empty directory.
+-  If oldpath refers to a symbolic link, the link is renamed; if  newpath refers to a symbolic link, the link will be overwritten.
+
+
+
+1. 如果新文件已经存在，那么它将会被原子地替换掉，这意味那些有新文件引用的进程不会观察到异样
+2. 如果新旧路径文件存在，并且是同一个文件，那么什么都不做
+3. 如果旧路径是一个目录，那么需要保证新路径不存在，或者指向一个空文件夹
+4. 如果`oldpath`是一个符号链接，那么这个符号链接本身将被重命名，不论它指向的目标文件或目录是否也被重命名。这意味着`oldpath`仍然是一个符号链接，但它的名字已经改变了。
+5. 如果`newpath`是一个符号链接，那么`rename`命令将会覆盖（或者说，用`oldpath`指向的文件或目录）`newpath`的符号链接。这意味着`newpath`原本指向的文件或目录将不再存在，而会被`oldpath`所指向的文件或目录所替代。
+
+
+### time
+- atime（Access Time）：atime表示文件或目录最后一次被访问的时间。每当文件或目录被读取时，其atime会被更新。atime的更新可能会导致性能开销，因此有些系统或文件系统支持关闭atime更新以提高性能。
+
+- mtime（Modification Time）：mtime表示文件或目录最后一次被修改的时间。每当文件的内容被修改时，其mtime会被更新。这包括文件内容的修改、写入或更新。
+
+- ctime（Change Time）：ctime表示文件或目录的元数据（例如文件权限、所有者等）最后一次被更改的时间。这包括文件内容的修改、权限更改、所有者更改等。ctime与mtime不同，即使只是修改文件的权限而不涉及文件内容的更改，ctime也会更新。

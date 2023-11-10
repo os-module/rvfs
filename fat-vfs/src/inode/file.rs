@@ -3,14 +3,18 @@ use crate::inode::FatFsInodeSame;
 use crate::*;
 use alloc::string::String;
 use alloc::sync::Weak;
+use alloc::vec::Vec;
+
 use fatfs::{Read, Seek, Write};
-use log::info;
+
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{FileStat, PollEvents, VfsNodePerm, VfsNodeType};
-use vfscore::VfsResult;
+use vfscore::utils::{
+    VfsFileStat, VfsNodePerm, VfsNodeType, VfsPollEvents, VfsRenameFlag, VfsTime,
+};
+use vfscore::{impl_file_inode_default, VfsResult};
 
 pub struct FatFsFileInode<R: VfsRawMutex> {
     #[allow(unused)]
@@ -42,7 +46,6 @@ where
             })
             .map(|e| e.unwrap().len())
             .unwrap_or(0);
-        info!("size: {}", size);
         Self {
             name,
             parent: Arc::downgrade(parent),
@@ -89,7 +92,7 @@ impl<R: VfsRawMutex + 'static> VfsFile for FatFsFileInode<R> {
         }
         Ok(buf.len())
     }
-    fn poll(&self, _event: PollEvents) -> VfsResult<PollEvents> {
+    fn poll(&self, _event: VfsPollEvents) -> VfsResult<VfsPollEvents> {
         todo!()
     }
     fn flush(&self) -> VfsResult<()> {
@@ -114,10 +117,10 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsFileInode<R> {
         Ok(())
     }
 
-    fn get_attr(&self) -> VfsResult<FileStat> {
+    fn get_attr(&self) -> VfsResult<VfsFileStat> {
         let attr = self.attr.inner.lock();
         let len = *self.size.lock();
-        Ok(FileStat {
+        Ok(VfsFileStat {
             st_dev: 0,
             st_ino: 1,
             st_mode: attr.perm.bits() as u32,
@@ -150,6 +153,21 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsFileInode<R> {
             .map_err(|_| VfsError::IoError)?;
         file.truncate().map_err(|_| VfsError::IoError)?;
         *this_len = len;
+        Ok(())
+    }
+
+    impl_file_inode_default!();
+
+    fn list_xattr(&self) -> VfsResult<Vec<String>> {
+        Err(VfsError::NoSys)
+    }
+    fn update_time(&self, time: VfsTime, now: VfsTimeSpec) -> VfsResult<()> {
+        let mut attr = self.attr.inner.lock();
+        match time {
+            VfsTime::AccessTime(t) => attr.atime = t,
+            VfsTime::ModifiedTime(t) => attr.mtime = t,
+        }
+        attr.ctime = now;
         Ok(())
     }
 }

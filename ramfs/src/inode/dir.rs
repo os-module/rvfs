@@ -8,14 +8,14 @@ use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{VfsDirEntry, VfsNodePerm, VfsNodeType};
-use vfscore::VfsResult;
+use vfscore::utils::{VfsDirEntry, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec};
+use vfscore::{impl_dir_inode_default, VfsResult};
 pub struct RamFsDirInode<T: Send + Sync, R: VfsRawMutex> {
     inode: UniFsDirInode<T, R>,
     ext_attr: lock_api::Mutex<R, BTreeMap<String, String>>,
 }
 
-impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsDirInode<T, R> {
+impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> RamFsDirInode<T, R> {
     pub fn new(
         sb: &Arc<UniFsSuperBlock<R>>,
         provider: T,
@@ -38,13 +38,13 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsDirInode<T, R> 
     }
 }
 
-impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsFile for RamFsDirInode<T, R> {
+impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsFile for RamFsDirInode<T, R> {
     fn readdir(&self, start_index: usize) -> VfsResult<Option<VfsDirEntry>> {
         self.inode.readdir(start_index)
     }
 }
 
-impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDirInode<T, R> {
+impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDirInode<T, R> {
     fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
         self.inode.get_super_block()
     }
@@ -66,6 +66,8 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
             .map_err(|_| VfsError::Invalid)?;
         let inode_number = sb
             .inode_index
+            .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+        sb.inode_count
             .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
 
         let inode: Arc<dyn VfsInode> = match ty {
@@ -116,8 +118,48 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
         Ok(inode)
     }
 
-    fn unlink(&self, _name: &str) -> VfsResult<()> {
-        todo!()
+    fn unlink(&self, name: &str) -> VfsResult<()> {
+        let sb = self
+            .get_super_block()?
+            .downcast_arc::<UniFsSuperBlock<R>>()
+            .map_err(|_| VfsError::Invalid)?;
+        let index = self
+            .inode
+            .children
+            .lock()
+            .iter()
+            .position(|(n, _)| n == name)
+            .ok_or(VfsError::NoEntry)?;
+        let (_, inode_number) = self.inode.children.lock().get(index).unwrap().clone();
+        let inode = sb.get_inode(inode_number).unwrap();
+
+        macro_rules! gen {
+            ($name:ident) => {{
+                let inode = inode
+                    .downcast_arc::<$name<T, R>>()
+                    .map_err(|_| VfsError::Invalid)?;
+                let res = inode.update_metadata(|meta| {
+                    meta.inner.lock().link_count -= 1;
+                    meta.inner.lock().link_count
+                });
+                res
+            }};
+        }
+        let link_count = if inode.inode_type() == VfsNodeType::File {
+            gen!(RamFsFileInode)
+        } else if inode.inode_type() == VfsNodeType::SymLink {
+            gen!(RamFsSymLinkInode)
+        } else {
+            return Err(VfsError::Invalid);
+        };
+
+        if link_count == 0 {
+            sb.inode_count
+                .fetch_sub(1, core::sync::atomic::Ordering::SeqCst);
+            sb.remove_inode(inode_number);
+        } // delete inode from sb
+        self.inode.children.lock().remove(index);
+        Ok(())
     }
 
     fn symlink(&self, name: &str, sy_name: &str) -> VfsResult<Arc<dyn VfsInode>> {
@@ -127,6 +169,8 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
             .map_err(|_| VfsError::Invalid)?;
         let inode_number = sb
             .inode_index
+            .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+        sb.inode_count
             .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
         let inode = Arc::new(RamFsSymLinkInode::<_, R>::new(
             &sb,
@@ -145,15 +189,15 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
         self.inode.lookup(name)
     }
 
-    fn rmdir(&self, _name: &str) -> VfsResult<()> {
-        todo!()
+    fn rmdir(&self, name: &str) -> VfsResult<()> {
+        self.unlink(name)
     }
 
     fn set_attr(&self, attr: InodeAttr) -> VfsResult<()> {
         set_attr(&self.inode.basic, attr);
         Ok(())
     }
-    fn get_attr(&self) -> VfsResult<FileStat> {
+    fn get_attr(&self) -> VfsResult<VfsFileStat> {
         let mut stat = basic_file_stat(&self.inode.basic);
         stat.st_size = 4096;
         Ok(stat)
@@ -165,5 +209,24 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDi
 
     fn inode_type(&self) -> VfsNodeType {
         VfsNodeType::Dir
+    }
+    fn rename_to(
+        &self,
+        old_name: &str,
+        new_parent: Arc<dyn VfsInode>,
+        new_name: &str,
+        flag: VfsRenameFlag,
+    ) -> VfsResult<()> {
+        let new_parent = new_parent
+            .downcast_arc::<RamFsDirInode<T, R>>()
+            .map_err(|_| VfsError::Invalid)?;
+        self.inode
+            .rename_to(old_name, &new_parent.inode, new_name, flag)
+    }
+
+    impl_dir_inode_default!();
+
+    fn update_time(&self, time: VfsTime, now: VfsTimeSpec) -> VfsResult<()> {
+        self.inode.update_time(time, now)
     }
 }

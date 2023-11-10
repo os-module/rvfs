@@ -1,12 +1,13 @@
 use crate::file::DynFsFileInode;
 use crate::*;
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use unifs::inode::UniFsDirInode;
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
+use vfscore::impl_dir_inode_default;
 use vfscore::inode::InodeAttr;
-use vfscore::utils::{FileStat, VfsDirEntry, VfsNodePerm, VfsNodeType};
+use vfscore::utils::{VfsDirEntry, VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime};
 
 pub struct DynFsDirInode<T: Send + Sync, R: VfsRawMutex>(UniFsDirInode<T, R>);
 
@@ -79,6 +80,8 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> DynFsDirInode<T
         let (_, inode_number) = children.remove(index);
         let sb = self.0.basic.sb.upgrade().unwrap();
         sb.remove_inode(inode_number);
+        sb.inode_count
+            .fetch_sub(1, core::sync::atomic::Ordering::SeqCst);
         Ok(())
     }
 }
@@ -108,19 +111,54 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for Dy
         Err(VfsError::NoSys)
     }
 
+    fn link(&self, _name: &str, _src: Arc<dyn VfsInode>) -> VfsResult<Arc<dyn VfsInode>> {
+        Err(VfsError::NoSys)
+    }
+
+    fn unlink(&self, _name: &str) -> VfsResult<()> {
+        Err(VfsError::NoSys)
+    }
+
+    fn symlink(&self, _name: &str, _sy_name: &str) -> VfsResult<Arc<dyn VfsInode>> {
+        Err(VfsError::NoSys)
+    }
+
     fn lookup(&self, name: &str) -> VfsResult<Option<Arc<dyn VfsInode>>> {
         self.0.lookup(name)
     }
+    fn rmdir(&self, _name: &str) -> VfsResult<()> {
+        Err(VfsError::NoSys)
+    }
+
+    impl_dir_inode_default!();
 
     fn set_attr(&self, attr: InodeAttr) -> VfsResult<()> {
         self.0.set_attr(attr)
     }
 
-    fn get_attr(&self) -> VfsResult<FileStat> {
+    fn get_attr(&self) -> VfsResult<VfsFileStat> {
         self.0.get_attr()
+    }
+
+    fn list_xattr(&self) -> VfsResult<Vec<String>> {
+        Err(VfsError::NoSys)
     }
 
     fn inode_type(&self) -> VfsNodeType {
         self.0.inode_type()
+    }
+
+    fn rename_to(
+        &self,
+        _old_name: &str,
+        _new_parent: Arc<dyn VfsInode>,
+        _new_name: &str,
+        _flag: VfsRenameFlag,
+    ) -> VfsResult<()> {
+        Err(VfsError::NoSys)
+    }
+
+    fn update_time(&self, time: VfsTime, now: VfsTimeSpec) -> VfsResult<()> {
+        self.0.update_time(time, now)
     }
 }

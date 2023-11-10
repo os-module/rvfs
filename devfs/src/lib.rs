@@ -6,7 +6,7 @@ mod dir;
 
 use crate::dir::DevFsDirInode;
 use alloc::sync::Arc;
-use unifs::dentry::UniFsDentry;
+
 use unifs::inode::{UniFsInodeAttr, UniFsInodeSame};
 use unifs::{UniFs, UniFsSuperBlock, VfsRawMutex};
 use vfscore::dentry::VfsDentry;
@@ -33,27 +33,27 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for Dev
     fn mount(
         self: Arc<Self>,
         _flags: u32,
+        ab_mnt: &str,
         _dev: Option<Arc<dyn VfsInode>>,
         _data: &[u8],
     ) -> VfsResult<Arc<dyn VfsDentry>> {
         if self.0.sb.lock().is_none() {
             let sb = UniFsSuperBlock::new(&(self.clone() as Arc<dyn VfsFsType>));
-            let root = DevFsDirInode::new(
+            let root = Arc::new(DevFsDirInode::new(
                 0,
                 self.0.provider.clone(),
                 &sb,
                 VfsNodePerm::from_bits_truncate(0o755),
-            );
-            let root = Arc::new(UniFsDentry::<R>::root(Arc::new(root)));
-            *sb.root.lock() = Some(root.clone());
+            ));
+            *sb.root.lock() = Some(root);
             sb.inode_index
                 .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
             sb.inode_count
                 .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
             self.0.sb.lock().replace(sb.clone());
-            Ok(root.clone())
+            sb.root_dentry(ab_mnt)
         } else {
-            self.0.sb.lock().as_ref().unwrap().root_dentry()
+            self.0.sb.lock().as_ref().unwrap().root_dentry(ab_mnt)
         }
     }
 

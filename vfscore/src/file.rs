@@ -1,5 +1,5 @@
 use crate::error::VfsError;
-use crate::utils::{PollEvents, VfsDirEntry};
+use crate::utils::{VfsDirEntry, VfsPollEvents};
 use crate::VfsResult;
 use downcast_rs::{impl_downcast, DowncastSync};
 
@@ -17,7 +17,7 @@ pub trait VfsFile: Send + Sync + DowncastSync {
     fn readdir(&self, _start_index: usize) -> VfsResult<Option<VfsDirEntry>> {
         Err(VfsError::NoSys)
     }
-    fn poll(&self, _event: PollEvents) -> VfsResult<PollEvents> {
+    fn poll(&self, _event: VfsPollEvents) -> VfsResult<VfsPollEvents> {
         Err(VfsError::NoSys)
     }
     fn ioctl(&self, _cmd: u32, _arg: usize) -> VfsResult<usize> {

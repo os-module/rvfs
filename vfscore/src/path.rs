@@ -3,7 +3,7 @@
 use crate::dentry::VfsDentry;
 use crate::error::VfsError;
 use crate::inode::VfsInode;
-use crate::utils::{VfsDirEntry, VfsNodePerm, VfsNodeType};
+use crate::utils::{VfsDirEntry, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsRenameFlag};
 use crate::VfsResult;
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
@@ -13,6 +13,17 @@ use alloc::{format, vec};
 use core::error::Error;
 use core::fmt::{write, Debug, Formatter, Write};
 use log::error;
+
+/// The context of system call
+///
+/// In VfsPath, we need to check the permission of the user, so we need the context of system call
+pub struct SysContext {
+    pub pid: u64,
+    pub uid: u64,
+    pub gid: u64,
+    pub cwd: Arc<dyn VfsDentry>,
+    pub root: Arc<dyn VfsDentry>,
+}
 
 #[derive(Clone)]
 pub struct VfsPath {
@@ -88,7 +99,7 @@ impl VfsPath {
             fs: self.fs.clone(),
         })
     }
-    pub fn root(&self) -> VfsPath {
+    pub fn root(&self) -> Self {
         VfsPath {
             path: "".to_string(),
             fs: self.fs.clone(),
@@ -98,16 +109,41 @@ impl VfsPath {
         self.path.is_empty()
     }
 
-    // todo！ open flags
-    pub fn open(&self) -> VfsResult<Arc<dyn VfsDentry>> {
-        self.exists()
+    // todo!(more flag support and permission check)
+    /// open a dentry
+    ///
+    /// if you need create the file if it doesn't exist, the parameter `mode` should be `Some(mode)`
+    ///
+    /// # Example
+    /// ```compile_fail
+    /// use vfscore::path::VfsPath;
+    /// let path = VfsPath::new(root);
+    /// let dentry = path.open(None);
+    /// ```
+    ///
+    pub fn open(&self, mode: Option<VfsInodeMode>) -> VfsResult<Arc<dyn VfsDentry>> {
+        let exist = self.exists();
+        match exist {
+            Ok(d) => Ok(d),
+            Err(e) => match e {
+                VfsError::NoEntry if mode.is_some() => {
+                    let ty = mode.unwrap() & VfsInodeMode::TYPE_MASK;
+                    match ty {
+                        VfsInodeMode::FILE => self.create_file(mode.unwrap().into()),
+                        VfsInodeMode::DIR => self.create_dir(mode.unwrap().into()),
+                        _ => Err(VfsError::Invalid),
+                    }
+                }
+                _ => Err(e),
+            },
+        }
     }
 
-    pub fn create_file(&self, perm: VfsNodePerm) -> VfsResult<Arc<dyn VfsDentry>> {
+    fn create_file(&self, perm: VfsNodePerm) -> VfsResult<Arc<dyn VfsDentry>> {
         self.create(VfsNodeType::File, perm, "create file")
     }
 
-    pub fn create_dir(&self, perm: VfsNodePerm) -> VfsResult<Arc<dyn VfsDentry>> {
+    fn create_dir(&self, perm: VfsNodePerm) -> VfsResult<Arc<dyn VfsDentry>> {
         self.create(VfsNodeType::Dir, perm, "create dir")
     }
 
@@ -135,7 +171,7 @@ impl VfsPath {
                 let file_inode = file_inode.unwrap();
                 // if we find the inode, we insert it into dentry cache
                 let _ = dentry.insert(file_name, file_inode)?;
-                Err(VfsError::FileExist)
+                Err(VfsError::EExist)
             } else {
                 // otherwise, we create a new inode and insert it into dentry cache
                 let file_inode = dentry.inode()?.create(file_name, ty, perm, None)?;
@@ -143,7 +179,7 @@ impl VfsPath {
                 Ok(dir)
             }
         } else {
-            Err(VfsError::FileExist)
+            Err(VfsError::EExist)
         }
     }
 
@@ -187,6 +223,7 @@ impl VfsPath {
             let sub_dentry = dentry.find(name);
             if sub_dentry.is_none() {
                 // second, we find in inode cache or disk
+                let parent_inode = dentry.inode()?;
                 let sub_inode = parent_inode.lookup(name)?;
                 if sub_inode.is_none() {
                     // if we can't find the inode, we return Err
@@ -226,7 +263,8 @@ impl VfsPath {
 
     // todo! permission check
     pub fn mount(&self, root: Arc<dyn VfsDentry>, mount_flag: u32) -> VfsResult<()> {
-        let dir = self.open()?;
+        assert!(root.parent().is_none());
+        let dir = self.open(None)?;
         let inode = dir.inode()?;
         if !inode
             .node_perm()
@@ -234,12 +272,17 @@ impl VfsPath {
         {
             return Err(VfsError::PermissionDenied);
         }
+        if inode.inode_type() != VfsNodeType::Dir {
+            return Err(VfsError::NotDir);
+        }
+        root.set_parent(&dir);
         dir.to_mount_point(root, mount_flag)?;
         Ok(())
     }
 
+    // todo! check much things
     pub fn umount(&self) -> VfsResult<()> {
-        let dir = self.open()?;
+        let dir = self.open(None)?;
         if !dir.is_mount_point() {
             return Err(VfsError::Invalid);
         }
@@ -248,6 +291,215 @@ impl VfsPath {
         mnt.root.inode()?.get_super_block()?.sync_fs(false)?;
         Ok(())
     }
+
+    pub fn truncate(&self, len: u64) -> VfsResult<()> {
+        let dt = self.open(None)?;
+        let inode = dt.inode()?;
+        if inode.inode_type() == VfsNodeType::Dir {
+            return Err(VfsError::IsDir);
+        }
+        // let fs = inode.get_super_block()?;
+        // todo! access check
+        if inode.node_perm().contains(VfsNodePerm::OTHER_WRITE) {
+            return Err(VfsError::Access);
+        }
+        inode.truncate(len)?;
+        Ok(())
+    }
+
+    pub fn symlink(&self, target: &str) -> VfsResult<()> {
+        let this = self.open(None);
+        match this {
+            Ok(_) => Err(VfsError::EExist),
+            Err(e) => match e {
+                VfsError::NoEntry => {
+                    let parent = self.get_parent("create symlink")?;
+                    let parent_inode = parent.inode()?;
+                    let name = self.filename();
+                    assert!(!name.is_empty());
+                    let inode = parent_inode.symlink(&name, target)?;
+                    let _ = parent.insert(&name, inode)?;
+                    Ok(())
+                }
+                _ => Err(e),
+            },
+        }
+    }
+    pub fn link(&self, old_dt: Arc<dyn VfsDentry>) -> VfsResult<()> {
+        if old_dt.inode()?.inode_type() == VfsNodeType::Dir {
+            return Err(VfsError::PermissionDenied);
+        }
+        let this = self.open(None);
+        match this {
+            Ok(_) => Err(VfsError::EExist),
+            Err(e) => match e {
+                VfsError::NoEntry => {
+                    let parent = self.get_parent("create hard link")?;
+                    let parent_inode = parent.inode()?;
+
+                    let old_fs = old_dt.inode()?.get_super_block()?;
+                    let this_fs = parent_inode.get_super_block()?;
+                    if !Arc::ptr_eq(&old_fs, &this_fs) {
+                        return Err(VfsError::Invalid);
+                    }
+                    // todo! access check
+                    let name = self.filename();
+                    assert!(!name.is_empty());
+                    let inode = parent_inode.link(&name, old_dt.inode()?)?;
+                    let _ = parent.insert(&name, inode)?;
+                    Ok(())
+                }
+                _ => Err(e),
+            },
+        }
+    }
+
+    pub fn unlink(&self) -> VfsResult<()> {
+        let dt = self.open(None)?;
+        let inode = dt.inode()?;
+        if inode.inode_type() == VfsNodeType::Dir {
+            return Err(VfsError::IsDir);
+        }
+        let parent = self.get_parent("unlink")?;
+        let parent_inode = parent.inode()?;
+
+        if !parent_inode.node_perm().contains(
+            VfsNodePerm::OTHER_WRITE | VfsNodePerm::GROUP_WRITE | VfsNodePerm::OWNER_WRITE,
+        ) {
+            return Err(VfsError::Access);
+        }
+        let name = self.filename();
+        assert!(!name.is_empty());
+        // todo! access check
+        parent_inode.unlink(&name)?;
+
+        // remove the dentry from cache
+        parent.remove(&name);
+        Ok(())
+    }
+
+    pub fn rename_to(
+        &self,
+        context: SysContext,
+        new_vfs_path: VfsPath,
+        flag: VfsRenameFlag,
+    ) -> VfsResult<()> {
+        let old_dt = self.open(None)?;
+        checkout_busy(&old_dt, &context)?;
+        let new_dt = new_vfs_path.open(None);
+        if new_dt.is_err() {
+            let err = new_dt.err().unwrap();
+            if !(err == VfsError::NoEntry) {
+                return Err(err);
+            }
+            // new path not exist
+            if flag.contains(VfsRenameFlag::RENAME_EXCHANGE) {
+                return Err(VfsError::NoEntry);
+            }
+            let new_parent = new_vfs_path
+                .get_parent("rename")
+                .expect("get parent of new path failed, this should not happen");
+            let old_parent = self
+                .get_parent("rename")
+                .expect("get parent of old path failed, this should not happen");
+
+            check_same_fs(&new_parent, &old_parent)?;
+            checkout_write_perm(&new_parent)?;
+            checkout_write_perm(&old_parent)?;
+
+            let old_parent_inode = old_parent.inode()?;
+
+            old_parent_inode.rename_to(
+                self.filename().as_str(),
+                new_parent.inode()?,
+                new_vfs_path.filename().as_str(),
+                flag,
+            )?;
+
+            // remove the dentry from cache
+            old_parent.remove(self.filename().as_str());
+            // insert the dentry into cache
+            new_parent.insert(new_vfs_path.filename().as_str(), old_dt.inode()?)?;
+        } else {
+            let new_dt = new_dt.unwrap();
+            checkout_busy(&new_dt, &context)?;
+            if flag.contains(VfsRenameFlag::RENAME_NOREPLACE) {
+                return Err(VfsError::EExist);
+            }
+            // EISDIR newpath is an existing directory, but oldpath is not a directory.
+            if new_dt.inode()?.inode_type() == VfsNodeType::Dir
+                && old_dt.inode()?.inode_type() != VfsNodeType::Dir
+            {
+                return Err(VfsError::IsDir);
+            }
+            let new_parent = new_vfs_path
+                .get_parent("rename")
+                .expect("get parent of new path failed, this should not happen");
+            let old_parent = self
+                .get_parent("rename")
+                .expect("get parent of old path failed, this should not happen");
+
+            check_same_fs(&new_parent, &old_parent)?;
+            checkout_write_perm(&new_parent)?;
+            checkout_write_perm(&old_parent)?;
+            let old_parent_inode = old_parent.inode()?;
+            let new_parent_inode = new_parent.inode()?;
+            old_parent_inode.rename_to(
+                self.filename().as_str(),
+                new_parent_inode,
+                new_vfs_path.filename().as_str(),
+                flag,
+            )?;
+            // remove the dentry from cache
+            old_parent.remove(self.filename().as_str());
+            new_parent.remove(new_vfs_path.filename().as_str());
+            // insert the dentry into cache
+            new_parent.insert(new_vfs_path.filename().as_str(), old_dt.inode()?)?;
+            if flag.contains(VfsRenameFlag::RENAME_EXCHANGE) {
+                // insert the dentry into cache
+                old_parent.insert(self.filename().as_str(), new_dt.inode()?)?;
+            } // 只有在交换的时候才需要插入,否则新的文件已经被覆盖掉了
+        }
+        Ok(())
+    }
+    pub fn set_xattr(&self, _key: &str, _value: &[u8]) -> VfsResult<()> {
+        unimplemented!();
+    }
+    pub fn get_xattr(&self, _key: &str) -> VfsResult<Vec<u8>> {
+        unimplemented!();
+    }
+}
+
+/// Check whether the dentry has write permission
+fn checkout_write_perm(dentry: &Arc<dyn VfsDentry>) -> VfsResult<()> {
+    if dentry
+        .inode()?
+        .node_perm()
+        .contains(VfsNodePerm::OTHER_WRITE | VfsNodePerm::GROUP_WRITE | VfsNodePerm::OWNER_WRITE)
+    {
+        Ok(())
+    } else {
+        Err(VfsError::Access)
+    }
+}
+
+/// Check whether the dentry is busy which means it is cwd or root
+fn checkout_busy(dentry: &Arc<dyn VfsDentry>, context: &SysContext) -> VfsResult<()> {
+    let b = dentry.inode()?.inode_type() == VfsNodeType::Dir && Arc::ptr_eq(dentry, &context.cwd)
+        || Arc::ptr_eq(dentry, &context.root);
+    if b {
+        return Err(VfsError::EBUSY);
+    }
+    Ok(())
+}
+/// Check whether the two dentry is in the same fs
+fn check_same_fs(dentry1: &Arc<dyn VfsDentry>, dentry2: &Arc<dyn VfsDentry>) -> VfsResult<()> {
+    let fs1 = dentry1.inode()?.get_super_block()?;
+    let fs2 = dentry2.inode()?.get_super_block()?;
+    if !Arc::ptr_eq(&fs1, &fs2) {
+        return Err(VfsError::Invalid);
+    }
+    Ok(())
 }
 
 fn real_dentry(dentry: Arc<dyn VfsDentry>) -> Arc<dyn VfsDentry> {
@@ -304,7 +556,6 @@ pub fn print_fs_tree(
         } else {
             "".to_string()
         };
-
         write(
             output,
             format_args!(
@@ -336,7 +587,7 @@ pub fn print_fs_tree(
     Ok(())
 }
 
-trait DirIter {
+pub trait DirIter {
     fn children(&self) -> Box<dyn Iterator<Item = VfsDirEntry>>;
 }
 
@@ -415,6 +666,14 @@ mod tests {
         }
 
         fn remove(&self, _name: &str) -> Option<Arc<dyn VfsDentry>> {
+            todo!()
+        }
+
+        fn parent(&self) -> Option<Arc<dyn VfsDentry>> {
+            todo!()
+        }
+
+        fn set_parent(&self, _parent: &Arc<dyn VfsDentry>) {
             todo!()
         }
     }

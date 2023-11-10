@@ -1,21 +1,22 @@
 use super::*;
-use crate::KernelProvider;
+use crate::RamFsProvider;
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use unifs::inode::basic_file_stat;
+use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{FileStat, VfsNodePerm, VfsNodeType};
-use vfscore::VfsResult;
+use vfscore::utils::{VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec};
+use vfscore::{impl_common_inode_default, VfsResult};
 pub struct RamFsSymLinkInode<T: Send + Sync, R: VfsRawMutex> {
     basic: UniFsInodeSame<T, R>,
     inner: lock_api::Mutex<R, String>,
     ext_attr: lock_api::Mutex<R, BTreeMap<String, String>>,
 }
 
-impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsSymLinkInode<T, R> {
+impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> RamFsSymLinkInode<T, R> {
     pub fn new(
         sb: &Arc<UniFsSuperBlock<R>>,
         provider: T,
@@ -33,7 +34,6 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsSymLinkInode<T,
             ext_attr: lock_api::Mutex::new(BTreeMap::new()),
         }
     }
-    #[allow(unused)]
     pub fn update_metadata<F, Res>(&self, f: F) -> Res
     where
         F: FnOnce(&UniFsInodeSame<T, R>) -> Res,
@@ -42,9 +42,9 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsSymLinkInode<T,
     }
 }
 
-impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsFile for RamFsSymLinkInode<T, R> {}
+impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsFile for RamFsSymLinkInode<T, R> {}
 
-impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsSymLinkInode<T, R> {
+impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsSymLinkInode<T, R> {
     fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
         let res = self.basic.sb.upgrade().unwrap();
         Ok(res)
@@ -67,7 +67,7 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsSy
         Ok(())
     }
 
-    fn get_attr(&self) -> VfsResult<FileStat> {
+    fn get_attr(&self) -> VfsResult<VfsFileStat> {
         let mut basic = basic_file_stat(&self.basic);
         basic.st_size = self.inner.lock().as_bytes().len() as u64;
         Ok(basic)
@@ -78,5 +78,16 @@ impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsSy
     }
     fn inode_type(&self) -> VfsNodeType {
         VfsNodeType::SymLink
+    }
+
+    impl_common_inode_default!();
+
+    fn update_time(&self, time: VfsTime, now: VfsTimeSpec) -> VfsResult<()> {
+        match time {
+            VfsTime::ModifiedTime(t) => self.basic.inner.lock().mtime = t,
+            VfsTime::AccessTime(t) => self.basic.inner.lock().atime = t,
+        }
+        self.basic.inner.lock().ctime = now;
+        Ok(())
     }
 }

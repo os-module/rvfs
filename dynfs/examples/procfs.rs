@@ -7,9 +7,10 @@ use std::sync::Arc;
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::fstype::VfsFsType;
-use vfscore::inode::{InodeAttr, VfsInode};
-use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{FileStat, VfsNodePerm, VfsNodeType, VfsTimeSpec};
+use vfscore::inode::VfsInode;
+use vfscore::path::DirIter;
+
+use vfscore::utils::*;
 use vfscore::VfsResult;
 
 #[derive(Clone)]
@@ -26,7 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         DynFsKernelProviderImpl,
         "procfs",
     ));
-    let root_dt = procfs.clone().mount(0, None, &[])?;
+    let root_dt = procfs.clone().mount(0, "/", None, &[])?;
     let root_inode = root_dt.inode()?;
 
     // Procfs don't support to create file/dir at runtime
@@ -50,16 +51,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("root dir: ");
     // readdir
-    let mut index = 0;
-    loop {
-        let dir_entry = root_inode.readdir(index)?;
-        if dir_entry.is_none() {
-            break;
-        }
-        let dir_entry = dir_entry.unwrap();
-        println!("{:?}", dir_entry);
-        index += 1;
-    }
+    root_inode.children().for_each(|x| {
+        println!("inode: {:?}", x.name);
+    });
 
     let p = root_inode.lookup("2")?.unwrap();
     let mut buf = [0; 10];
@@ -72,16 +66,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     dynfs_inode.remove_manually("3")?;
     println!("root dir: ");
     // readdir
-    let mut index = 0;
-    loop {
-        let dir_entry = root_inode.readdir(index)?;
-        if dir_entry.is_none() {
-            break;
-        }
-        let dir_entry = dir_entry.unwrap();
-        println!("{:?}", dir_entry);
-        index += 1;
-    }
+    root_inode.children().for_each(|x| {
+        println!("inode: {:?}", x.name);
+    });
 
     procfs.kill_sb(root_inode.get_super_block()?)?;
 
@@ -100,22 +87,9 @@ impl VfsFile for ProcessInfo {
 }
 
 impl VfsInode for ProcessInfo {
-    fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
-        todo!()
-    }
-
     fn node_perm(&self) -> VfsNodePerm {
         VfsNodePerm::empty()
     }
-
-    fn set_attr(&self, _attr: InodeAttr) -> VfsResult<()> {
-        todo!()
-    }
-
-    fn get_attr(&self) -> VfsResult<FileStat> {
-        todo!()
-    }
-
     fn inode_type(&self) -> VfsNodeType {
         todo!()
     }

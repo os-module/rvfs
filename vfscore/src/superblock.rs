@@ -1,9 +1,10 @@
-use crate::dentry::VfsDentry;
 use crate::fstype::VfsFsType;
+use crate::inode::VfsInode;
 use crate::utils::VfsFsStat;
 use crate::VfsResult;
 use alloc::sync::Arc;
 use downcast_rs::{impl_downcast, DowncastSync};
+
 /// Type of superblock keying.
 pub enum SuperType {
     /// Only one such superblock may exist.
@@ -36,8 +37,8 @@ pub trait VfsSuperBlock: Send + Sync + DowncastSync {
     /// Get the fs type of this super block
     fn fs_type(&self) -> Arc<dyn VfsFsType>;
 
-    /// Get the root dentry of this super block
-    fn root_dentry(&self) -> VfsResult<Arc<dyn VfsDentry>>;
+    /// Get the root inode of this super block
+    fn root_inode(&self) -> VfsResult<Arc<dyn VfsInode>>;
 }
 
 impl_downcast!(sync  VfsSuperBlock);

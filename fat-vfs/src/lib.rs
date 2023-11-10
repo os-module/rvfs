@@ -10,9 +10,7 @@ extern crate alloc;
 use crate::device::FatDevice;
 use alloc::sync::Arc;
 use core::fmt::{Debug, Formatter};
-use fatfs::{
-    Date, DateTime, DefaultTimeProvider, Dir, File, LossyOemCpConverter, Time, TimeProvider,
-};
+use fatfs::*;
 use lock_api::Mutex;
 use vfscore::utils::VfsTimeSpec;
 

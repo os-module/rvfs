@@ -3,12 +3,12 @@ use log::info;
 use std::error::Error;
 use std::sync::Arc;
 use vfscore::dentry::VfsDentry;
-use vfscore::error::VfsError;
+
 use vfscore::file::VfsFile;
 use vfscore::fstype::VfsFsType;
-use vfscore::inode::{InodeAttr, VfsInode};
-use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{FileStat, VfsNodePerm, VfsNodeType, VfsTimeSpec};
+use vfscore::inode::VfsInode;
+
+use vfscore::utils::{VfsNodePerm, VfsNodeType, VfsTimeSpec};
 use vfscore::VfsResult;
 
 #[derive(Clone)]
@@ -39,29 +39,16 @@ impl VfsFile for NullDev {
 }
 
 impl VfsInode for NullDev {
-    fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
-        todo!()
-    }
-
     fn node_perm(&self) -> VfsNodePerm {
         VfsNodePerm::empty()
     }
-
-    fn set_attr(&self, _attr: InodeAttr) -> VfsResult<()> {
-        Ok(())
-    }
-
-    fn get_attr(&self) -> VfsResult<FileStat> {
-        Err(VfsError::NoSys)
-    }
-
     fn inode_type(&self) -> VfsNodeType {
         todo!()
     }
 }
 
 pub fn init_devfs(devfs: Arc<dyn VfsFsType>) -> Result<Arc<dyn VfsDentry>, Box<dyn Error>> {
-    let root_dt = devfs.i_mount(0, None, &[])?;
+    let root_dt = devfs.i_mount(0, "/dev", None, &[])?;
     let root_inode = root_dt.inode()?;
     let null = root_inode.create(
         "null",

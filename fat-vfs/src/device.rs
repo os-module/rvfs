@@ -1,5 +1,6 @@
-use ::fatfs::{IoBase, Read, Seek, SeekFrom, Write};
 use alloc::sync::Arc;
+use fatfs::*;
+
 use vfscore::inode::VfsInode;
 
 #[derive(Clone)]

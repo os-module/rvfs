@@ -1,19 +1,20 @@
+#![allow(clippy::uninit_vec)]
+#![feature(seek_stream_len)]
 use fat_vfs::{FatFs, FatFsProvider};
+use fatfs::FatType::Fat32;
 use fatfs::{format_volume, FormatVolumeOptions, IoBase, Read, Seek, SeekFrom, Write};
+use log::info;
 use spin::Mutex;
 use std::error::Error;
-use std::fs::{File, OpenOptions};
-
-use fatfs::FatType::Fat32;
-use std::os::unix::fs::{FileExt, MetadataExt};
+use std::io::Cursor;
 use std::sync::Arc;
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::fstype::VfsFsType;
-use vfscore::inode::{InodeAttr, VfsInode};
+use vfscore::inode::VfsInode;
 use vfscore::path::print_fs_tree;
-use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{FileStat, VfsNodePerm, VfsNodeType, VfsTimeSpec};
+
+use vfscore::utils::*;
 use vfscore::VfsResult;
 
 #[derive(Clone)]
@@ -35,13 +36,17 @@ impl core::fmt::Write for FakeWriter {
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open("fat32.img")
-        .unwrap();
-    file.set_len(64 * 1024 * 1024).unwrap();
+    let mut data = Vec::with_capacity(64 * 1024 * 1024);
+    unsafe {
+        data.set_len(64 * 1024 * 1024);
+        data.fill(0);
+    }
+    let mut file = Cursor::new(data);
+    use std::io::Seek;
+    info!(
+        "mem file len: {:?} MB",
+        file.stream_len().unwrap() / 1024 / 1024
+    );
     let file = Arc::new(Mutex::new(file));
 
     {
@@ -49,16 +54,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         format_volume(&mut buf_file, FormatVolumeOptions::new().fat_type(Fat32)).unwrap();
         let fs = fatfs::FileSystem::new(buf_file, fatfs::FsOptions::new()).unwrap();
         let root_dir = fs.root_dir();
-        let _file = root_dir.create_file("root.txt").unwrap();
+        let file = root_dir.create_file("root.txt").unwrap();
         // /
         // |-- root.txt
-        fs.unmount().unwrap();
+        file.get_fs().unmount().unwrap();
+        // fs.unmount().unwrap();
     }
 
     let fatfs = Arc::new(FatFs::<_, Mutex<()>>::new(ProviderImpl));
     let root = fatfs
         .clone()
-        .mount(0, Some(Arc::new(DeviceInode::new(file.clone()))), &[])?;
+        .mount(0, "/", Some(Arc::new(DeviceInode::new(file.clone()))), &[])?;
     assert_eq!(fatfs.fs_name(), "fatfs");
 
     let _d1 = root
@@ -87,9 +93,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         data = (data + 1) % 255;
         if offset >= 1024 * 1024 * 60 {
             break;
-        } // 30MB
+        } // 60MB
     }
     f1.flush()?;
+    println!("write 60MB to f1");
     root.inode()?.unlink("f1")?;
     println!("unlink f1");
     offset = 0;
@@ -121,12 +128,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("read 1024 bytes from f2");
 
     f3.truncate(10)?;
-
+    let stat = f3.get_attr()?;
+    assert_eq!(stat.st_size, 10);
     let w = f3.write_at(10, &[1u8; 10])?;
     assert_eq!(w, 10);
     f3.flush()?;
     let stat = f3.get_attr()?;
     assert_eq!(stat.st_size, 20);
+    println!("truncate file success");
 
     println!("root dir: ");
     // /
@@ -142,7 +151,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     {
         // reset file
-        use std::io::Seek;
         file.lock().seek(std::io::SeekFrom::Start(0)).unwrap();
         let buf_file = BufStream::new(file.clone());
         let fs = fatfs::FileSystem::new(buf_file, fatfs::FsOptions::new()).unwrap();
@@ -152,17 +160,15 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("{:?}", name);
         });
     }
-
-    std::fs::remove_file("fat32.img").unwrap();
     Ok(())
 }
 
 struct BufStream {
-    file: Arc<Mutex<File>>,
+    file: Arc<Mutex<Cursor<Vec<u8>>>>,
 }
 
 impl BufStream {
-    pub fn new(file: Arc<Mutex<File>>) -> Self {
+    pub fn new(file: Arc<Mutex<Cursor<Vec<u8>>>>) -> Self {
         BufStream { file }
     }
 }
@@ -214,62 +220,60 @@ impl Seek for BufStream {
 }
 
 struct DeviceInode {
-    file: Arc<Mutex<File>>,
+    file: Arc<Mutex<Cursor<Vec<u8>>>>,
 }
 
 impl DeviceInode {
-    pub fn new(file: Arc<Mutex<File>>) -> Self {
+    pub fn new(file: Arc<Mutex<Cursor<Vec<u8>>>>) -> Self {
         DeviceInode { file }
     }
 }
 
 impl VfsFile for DeviceInode {
     fn read_at(&self, offset: u64, buf: &mut [u8]) -> VfsResult<usize> {
+        use std::io::{Read, Seek};
         self.file
             .lock()
-            .read_at(buf, offset)
-            .map_err(|_| VfsError::IoError)
+            .seek(std::io::SeekFrom::Start(offset))
+            .map_err(|_| VfsError::IoError)?;
+        self.file.lock().read(buf).map_err(|_| VfsError::IoError)
     }
     fn write_at(&self, offset: u64, buf: &[u8]) -> VfsResult<usize> {
+        use std::io::{Seek, Write};
         self.file
             .lock()
-            .write_at(buf, offset)
-            .map_err(|_| VfsError::IoError)
+            .seek(std::io::SeekFrom::Start(offset))
+            .map_err(|_| VfsError::IoError)?;
+        self.file.lock().write(buf).map_err(|_| VfsError::IoError)
     }
     fn flush(&self) -> VfsResult<()> {
         self.fsync()
     }
     fn fsync(&self) -> VfsResult<()> {
-        self.file.lock().sync_all().map_err(|_| VfsError::IoError)
+        use std::io::Write;
+        self.file.lock().flush().map_err(|_| VfsError::IoError)
     }
 }
 
 impl VfsInode for DeviceInode {
-    fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
-        todo!()
-    }
-
     fn node_perm(&self) -> VfsNodePerm {
         VfsNodePerm::empty()
     }
+    fn get_attr(&self) -> VfsResult<VfsFileStat> {
+        use std::io::Seek;
+        let mut meta = self.file.lock();
 
-    fn set_attr(&self, _attr: InodeAttr) -> VfsResult<()> {
-        todo!()
-    }
-
-    fn get_attr(&self) -> VfsResult<FileStat> {
-        let meta = self.file.lock().metadata().unwrap();
-        Ok(FileStat {
-            st_dev: meta.dev(),
-            st_ino: meta.ino(),
-            st_mode: meta.mode(),
-            st_nlink: meta.nlink() as u32,
+        Ok(VfsFileStat {
+            st_dev: 0,
+            st_ino: 0,
+            st_mode: 0,
+            st_nlink: 1,
             st_uid: 0,
             st_gid: 0,
             st_rdev: 0,
             __pad: 0,
-            st_size: meta.size(),
-            st_blksize: meta.blksize() as u32,
+            st_size: meta.stream_len().unwrap(),
+            st_blksize: 512,
             __pad2: 0,
             st_blocks: 0,
             st_atime: VfsTimeSpec::new(0, 0),
@@ -278,7 +282,6 @@ impl VfsInode for DeviceInode {
             unused: 0,
         })
     }
-
     fn inode_type(&self) -> VfsNodeType {
         VfsNodeType::BlockDevice
     }

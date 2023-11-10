@@ -1,13 +1,17 @@
 use crate::{DynFsKernelProvider, UniFsSuperBlock, UniInodeSameNew};
+use alloc::string::String;
 use alloc::sync::Arc;
+use alloc::vec::Vec;
 use unifs::inode::{basic_file_stat, UniFsInodeSame};
 use unifs::*;
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{FileStat, PollEvents, VfsNodePerm, VfsNodeType};
-use vfscore::VfsResult;
+use vfscore::utils::{
+    VfsFileStat, VfsNodePerm, VfsNodeType, VfsPollEvents, VfsRenameFlag, VfsTime, VfsTimeSpec,
+};
+use vfscore::{impl_file_inode_default, VfsResult};
 
 pub struct DynFsFileInode<T: Send + Sync, R: VfsRawMutex> {
     basic: UniFsInodeSame<T, R>,
@@ -39,7 +43,7 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> VfsFile for Dyn
     fn write_at(&self, offset: u64, buf: &[u8]) -> VfsResult<usize> {
         self.real_inode()?.write_at(offset, buf)
     }
-    fn poll(&self, event: PollEvents) -> VfsResult<PollEvents> {
+    fn poll(&self, event: VfsPollEvents) -> VfsResult<VfsPollEvents> {
         self.real_inode()?.poll(event)
     }
 
@@ -69,14 +73,27 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for Dy
         Ok(())
     }
 
-    fn get_attr(&self) -> VfsResult<FileStat> {
+    fn get_attr(&self) -> VfsResult<VfsFileStat> {
         let mut attr = basic_file_stat(&self.basic);
         let real_attr = self.real_inode()?.get_attr()?;
         attr.st_size = real_attr.st_size;
         Ok(attr)
     }
 
+    fn list_xattr(&self) -> VfsResult<Vec<String>> {
+        Err(VfsError::NoSys)
+    }
+
     fn inode_type(&self) -> VfsNodeType {
         VfsNodeType::File
+    }
+
+    impl_file_inode_default!();
+
+    fn truncate(&self, _len: u64) -> VfsResult<()> {
+        Err(VfsError::PermissionDenied)
+    }
+    fn update_time(&self, time: VfsTime, now: VfsTimeSpec) -> VfsResult<()> {
+        self.real_inode()?.update_time(time, now)
     }
 }

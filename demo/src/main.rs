@@ -10,17 +10,15 @@ use std::ops::Index;
 use std::sync::Arc;
 use vfscore::error::VfsError;
 use vfscore::fstype::VfsFsType;
-use vfscore::path::VfsPath;
-use vfscore::utils::VfsNodeType;
+use vfscore::path::{print_fs_tree, VfsPath};
+use vfscore::utils::{VfsInodeMode, VfsNodeType};
 
 use crate::procfs::{init_procfs, DynFsKernelProviderImpl, ProcFsDirInodeImpl, ProcessInfo};
 use crate::ramfs::{init_ramfs, RamFsProviderImpl};
-use crate::utils::print_fs_tree;
 
 mod devfs;
 mod procfs;
 mod ramfs;
-mod utils;
 
 static FS: Lazy<Mutex<HashMap<String, Arc<dyn VfsFsType>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
@@ -49,15 +47,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     let path = VfsPath::new(ramfs_root.clone());
     let test1_path = path.join("d1/test1.txt")?;
 
-    let dt1 = test1_path.create_file("rwxr-xr-x".into())?;
+    let dt1 = test1_path.open(Some(
+        VfsInodeMode::from_bits_truncate(0o777) | VfsInodeMode::FILE,
+    ))?;
     let test2_path = path.join("d1/test2.txt")?;
-    let dt2 = test2_path.create_file("rwxr-xr-x".into())?;
+    let dt2 = test2_path.open(Some(
+        VfsInodeMode::from_bits_truncate(0o777) | VfsInodeMode::FILE,
+    ))?;
 
     dt1.inode()?.write_at(0, b"hello world")?;
     dt2.inode()?.write_at(0, b"test2")?;
 
     let proc_path = path.join("proc")?;
-    let proc_dt = proc_path.open()?;
+    let proc_dt = proc_path.open(None)?;
 
     let proc_inode = proc_dt
         .inode()?
@@ -75,8 +77,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     pid1_dt.i_insert("pid", pid1pid)?;
 
     info!("ramfs tree:");
-    print_fs_tree(ramfs_root.clone(), "".to_string())?;
+    print_fs_tree(&mut OutPut, ramfs_root.clone(), "".to_string())?;
     Ok(())
+}
+
+struct OutPut;
+impl core::fmt::Write for OutPut {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        print!("{}", s);
+        Ok(())
+    }
 }
 
 fn register_all_fs() {
@@ -86,7 +96,6 @@ fn register_all_fs() {
     ));
     let sysfs = Arc::new(DynFs::<_, Mutex<()>>::new(DynFsKernelProviderImpl, "sysfs"));
     let ramfs = Arc::new(RamFs::<_, Mutex<()>>::new(RamFsProviderImpl));
-
     let devfs = Arc::new(DevFs::<_, Mutex<()>>::new(DevFsKernelProviderImpl));
 
     FS.lock().insert("procfs".to_string(), procfs);

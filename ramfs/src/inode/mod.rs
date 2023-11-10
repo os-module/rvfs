@@ -3,7 +3,7 @@ mod file;
 mod symlink;
 
 use super::VfsRawMutex;
-use crate::KernelProvider;
+use crate::RamFsProvider;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::sync::Arc;
@@ -12,14 +12,14 @@ pub use file::RamFsFileInode;
 use unifs::inode::{UniFsInodeAttr, UniFsInodeSame};
 use unifs::UniFsSuperBlock;
 use vfscore::inode::InodeAttr;
-use vfscore::utils::{FileStat, VfsNodePerm};
+use vfscore::utils::{VfsFileStat, VfsNodePerm};
 
 trait RamFsInodeSameNew<T: Send + Sync, R: VfsRawMutex> {
     fn new(sb: &Arc<UniFsSuperBlock<R>>, provider: T, inode_number: u64, perm: VfsNodePerm)
         -> Self;
 }
 
-impl<T: KernelProvider + 'static, R: VfsRawMutex + 'static> RamFsInodeSameNew<T, R>
+impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> RamFsInodeSameNew<T, R>
     for UniFsInodeSame<T, R>
 {
     fn new(

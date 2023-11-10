@@ -1,5 +1,5 @@
 use log::{error, info};
-use ramfs::{KernelProvider, RamFs};
+use ramfs::{RamFs, RamFsProvider};
 use spin::mutex::Mutex;
 use std::error::Error;
 use std::sync::Arc;
@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let ramfs = Arc::new(RamFs::<_, Mutex<()>>::new(PageProviderImpl));
     // create a real ramfs
     // This function will return the root dentry of the ramfs
-    let root = ramfs.clone().mount(0, None, &[])?;
+    let root = ramfs.clone().mount(0, "/", None, &[])?;
     // we can get the super block from the inode
     let sb = root.inode()?.get_super_block()?;
     // we can get the fstype from the super block
@@ -72,7 +72,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mnt_dt = root.clone().insert("mount_dir", mount_dir)?;
 
     // create a new ramfs
-    let new_ramfs_root = ramfs.clone().mount(0, None, &[])?;
+    let new_ramfs_root = ramfs.clone().mount(0, "/", None, &[])?;
     let new_sb = new_ramfs_root.inode()?.get_super_block()?;
     // mount the ramfs to the mount_dir
     mnt_dt.clone().to_mount_point(new_ramfs_root.clone(), 0)?;
@@ -103,7 +103,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 #[derive(Debug, Clone)]
 struct PageProviderImpl;
 
-impl KernelProvider for PageProviderImpl {
+impl RamFsProvider for PageProviderImpl {
     fn current_time(&self) -> VfsTimeSpec {
         VfsTimeSpec::new(0, 0)
     }

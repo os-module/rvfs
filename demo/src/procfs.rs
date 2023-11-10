@@ -8,9 +8,9 @@ use vfscore::dentry::VfsDentry;
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::fstype::VfsFsType;
-use vfscore::inode::{InodeAttr, VfsInode};
-use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{FileStat, VfsNodePerm, VfsNodeType, VfsTimeSpec};
+use vfscore::inode::VfsInode;
+
+use vfscore::utils::*;
 use vfscore::VfsResult;
 pub struct ProcessInfo {
     pid: u64,
@@ -33,24 +33,17 @@ impl VfsFile for ProcessInfo {
 }
 
 impl VfsInode for ProcessInfo {
-    fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
-        todo!()
-    }
-
     fn node_perm(&self) -> VfsNodePerm {
         VfsNodePerm::empty()
     }
-
-    fn set_attr(&self, _attr: InodeAttr) -> VfsResult<()> {
-        todo!()
+    fn get_attr(&self) -> VfsResult<VfsFileStat> {
+        Ok(VfsFileStat {
+            st_size: 0,
+            ..Default::default()
+        })
     }
-
-    fn get_attr(&self) -> VfsResult<FileStat> {
-        todo!()
-    }
-
     fn inode_type(&self) -> VfsNodeType {
-        todo!()
+        VfsNodeType::File
     }
 }
 
@@ -66,30 +59,23 @@ impl VfsFile for MemInfo {
 }
 
 impl VfsInode for MemInfo {
-    fn get_super_block(&self) -> VfsResult<Arc<dyn VfsSuperBlock>> {
-        todo!()
-    }
-
     fn node_perm(&self) -> VfsNodePerm {
         VfsNodePerm::empty()
     }
-
-    fn set_attr(&self, _attr: InodeAttr) -> VfsResult<()> {
-        todo!()
+    fn get_attr(&self) -> VfsResult<VfsFileStat> {
+        Ok(VfsFileStat {
+            st_size: 0,
+            ..Default::default()
+        })
     }
-
-    fn get_attr(&self) -> VfsResult<FileStat> {
-        todo!()
-    }
-
     fn inode_type(&self) -> VfsNodeType {
-        todo!()
+        VfsNodeType::File
     }
 }
 pub type ProcFsDirInodeImpl = DynFsDirInode<DynFsKernelProviderImpl, Mutex<()>>;
 
 pub fn init_procfs(procfs: Arc<dyn VfsFsType>) -> Result<Arc<dyn VfsDentry>, Box<dyn Error>> {
-    let root_dt = procfs.i_mount(0, None, &[])?;
+    let root_dt = procfs.i_mount(0, "/proc", None, &[])?;
 
     let root_inode = root_dt.inode()?;
     let root_inode = root_inode

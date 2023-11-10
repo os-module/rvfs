@@ -14,8 +14,7 @@ pub struct UniFsDentry<R: VfsRawMutex> {
 }
 
 struct UniFsDentryInner<R: VfsRawMutex> {
-    #[allow(unused)]
-    parent: Weak<UniFsDentry<R>>,
+    parent: Weak<dyn VfsDentry>,
     inode: Arc<dyn VfsInode>,
     name: String,
     mnt: Option<VfsMountPoint>,
@@ -26,10 +25,10 @@ impl<R: VfsRawMutex + 'static> UniFsDentry<R> {
     /// Create the root dentry
     ///
     /// Only call once
-    pub fn root(inode: Arc<dyn VfsInode>) -> Self {
+    pub fn root(inode: Arc<dyn VfsInode>, parent: Weak<dyn VfsDentry>) -> Self {
         Self {
             inner: lock_api::Mutex::new(UniFsDentryInner {
-                parent: Weak::new(),
+                parent,
                 inode,
                 name: "/".to_string(),
                 mnt: None,
@@ -97,7 +96,7 @@ impl<R: VfsRawMutex + 'static> VfsDentry for UniFsDentry<R> {
         let inode_type = child.inode_type();
         let child = Arc::new(UniFsDentry {
             inner: lock_api::Mutex::new(UniFsDentryInner {
-                parent: Arc::downgrade(&self),
+                parent: Arc::downgrade(&(self.clone() as Arc<dyn VfsDentry>)),
                 inode: child,
                 name: name.to_string(),
                 mnt: None,
@@ -113,7 +112,7 @@ impl<R: VfsRawMutex + 'static> VfsDentry for UniFsDentry<R> {
             .as_mut()
             .unwrap()
             .insert(name.to_string(), child.clone())
-            .map_or(Ok(child), |_| Err(VfsError::FileExist))
+            .map_or(Ok(child), |_| Err(VfsError::EExist))
     }
 
     fn remove(&self, name: &str) -> Option<Arc<dyn VfsDentry>> {
@@ -123,6 +122,15 @@ impl<R: VfsRawMutex + 'static> VfsDentry for UniFsDentry<R> {
             .as_mut()
             .unwrap()
             .remove(name)
-            .map(|item| item as Arc<dyn VfsDentry>)
+            .map(|x| x as Arc<dyn VfsDentry>)
+    }
+
+    fn parent(&self) -> Option<Arc<dyn VfsDentry>> {
+        self.inner.lock().parent.upgrade()
+    }
+
+    fn set_parent(&self, parent: &Arc<dyn VfsDentry>) {
+        let mut inner = self.inner.lock();
+        inner.parent = Arc::downgrade(parent);
     }
 }

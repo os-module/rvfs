@@ -37,6 +37,36 @@ pub trait VfsDentry: Send + Sync + DowncastSync {
     ) -> VfsResult<Arc<dyn VfsDentry>>;
     /// Remove a child from this dentry and return the dentry of the child
     fn remove(&self, name: &str) -> Option<Arc<dyn VfsDentry>>;
+
+    /// Get the parent of this dentry
+    fn parent(&self) -> Option<Arc<dyn VfsDentry>>;
+
+    /// Set the parent of this dentry
+    ///
+    /// This is useful when you want to move a dentry to another directory or
+    /// mount this dentry to another directory
+    fn set_parent(&self, parent: &Arc<dyn VfsDentry>);
+
+    /// Get the path of this dentry
+    fn path(&self) -> String {
+        if let Some(p) = self.parent() {
+            let path = String::from("/") + self.name().as_str();
+            let parent_name = p.name();
+            return if parent_name == "/" {
+                if p.parent().is_some() {
+                    // p is a mount point
+                    p.parent().unwrap().path() + path.as_str()
+                } else {
+                    path
+                }
+            } else {
+                // p is not root
+                p.path() + path.as_str()
+            };
+        } else {
+            String::from("/")
+        }
+    }
 }
 
 impl dyn VfsDentry {

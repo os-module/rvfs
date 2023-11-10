@@ -1,40 +1,65 @@
 use core::error::Error;
 use core::fmt::{Debug, Display, Formatter};
 
-#[allow(unused)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VfsError {
     /// EACCES 权限拒绝
-    PermissionDenied = 13,
+    PermissionDenied = 1,
     /// ENOENT 无此文件或目录
     NoEntry = 2,
+    /// 被打断
+    EINTR = 4,
     /// EIO 输入输出错误
     IoError = 5,
-    /// EEXIST 文件已存在
-    FileExist = 17,
-    /// ENOTDIR 不是目录
-    NotDir = 20,
-    /// ENOTEMPTY  目录非空
-    NotEmpty = 39,
+    /// try again
+    EAGAIN = 11,
     /// ENOMEM 内存不足
     NoMem = 12,
-    /// ENOSPC 空间不足
-    NoSpace = 28,
+    /// EACCESS 无访问权限
+    Access = 13,
+    /// EBUSY 设备或资源忙
+    EBUSY = 16,
+    /// EEXIST 文件已存在
+    EExist = 17,
+    /// ENOTDIR 不是目录
+    NotDir = 20,
     /// EINVAL 无效参数
     Invalid = 22,
+    /// ENODEV 设备不存在
+    NoDev = 19,
+    /// IsDir 是目录
+    IsDir = 21,
+    /// ENOTTY 不是终端
+    NoTTY = 25,
+    /// ENOSPC 空间不足
+    NoSpace = 28,
+    /// Illegal seek
+    ESPIPE = 29,
+    /// Broken pipe
+    EPIPE = 32,
     /// ENAMETOOLONG 名称太长
     NameTooLong = 36,
     /// ENOSYS 不支持的系统调用
     NoSys = 38,
-    /// ENODEV 设备不存在
-    NoDev = 19,
-    /// ENOTTY 不是终端
-    NoTTY = 25,
+    /// ENOTEMPTY  目录非空
+    NotEmpty = 39,
 }
 
 impl Display for VfsError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
+            VfsError::EAGAIN => {
+                write!(f, "Try again")
+            }
+            VfsError::EINTR => {
+                write!(f, "Interrupted system call")
+            }
+            VfsError::EPIPE => {
+                write!(f, "Broken pipe")
+            }
+            VfsError::ESPIPE => {
+                write!(f, "Illegal seek")
+            }
             VfsError::PermissionDenied => {
                 write!(f, "Permission denied")
             }
@@ -44,7 +69,7 @@ impl Display for VfsError {
             VfsError::IoError => {
                 write!(f, "Input/output error")
             }
-            VfsError::FileExist => {
+            VfsError::EExist => {
                 write!(f, "File exists")
             }
             VfsError::NotDir => {
@@ -74,6 +99,15 @@ impl Display for VfsError {
             VfsError::NoTTY => {
                 write!(f, "Inappropriate ioctl for device")
             }
+            VfsError::IsDir => {
+                write!(f, "Is a directory")
+            }
+            VfsError::Access => {
+                write!(f, "Access error")
+            }
+            VfsError::EBUSY => {
+                write!(f, "Device or resource busy")
+            }
         }
     }
 }
@@ -85,11 +119,19 @@ impl From<VfsError> for i32 {
         value as i32
     }
 }
+#[cfg(feature = "linux_error")]
+impl From<VfsError> for pconst::LinuxErrno {
+    fn from(value: VfsError) -> Self {
+        pconst::LinuxErrno::try_from(-(i32::from(value) as isize))
+            .unwrap_or(pconst::LinuxErrno::EINVAL)
+    }
+}
 
 #[cfg(test)]
 mod tests {
+    use super::VfsError;
     #[test]
     fn test_vfs_error() {
-        assert_eq!(crate::error::VfsError::NoEntry as i32, 2);
+        assert_eq!(VfsError::NoEntry as i32, 2);
     }
 }
