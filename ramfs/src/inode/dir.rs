@@ -8,7 +8,9 @@ use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{VfsDirEntry, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec};
+use vfscore::utils::{
+    VfsDirEntry, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec,
+};
 use vfscore::{impl_dir_inode_default, VfsResult};
 pub struct RamFsDirInode<T: Send + Sync, R: VfsRawMutex> {
     inode: UniFsDirInode<T, R>,
@@ -200,6 +202,11 @@ impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDir
     fn get_attr(&self) -> VfsResult<VfsFileStat> {
         let mut stat = basic_file_stat(&self.inode.basic);
         stat.st_size = 4096;
+        stat.st_mode = VfsInodeMode::from(
+            VfsNodePerm::from_bits_truncate(stat.st_mode as u16),
+            VfsNodeType::Dir,
+        )
+        .bits();
         Ok(stat)
     }
     fn list_xattr(&self) -> VfsResult<Vec<String>> {

@@ -142,26 +142,33 @@ impl<T: Send + Sync + 'static, R: VfsRawMutex + 'static> UniFsDirInode<T, R> {
                 .iter()
                 .position(|(n, _)| n == new_name)
                 .ok_or(VfsError::NoEntry)?;
-            let mut this = self.children.lock();
-            let mut new = new_inode.children.lock();
 
-            let (_, old_inode_number) = this.remove(old_inode_index);
-            let (_, new_inode_number) = new.remove(new_inode_index);
+            let (_, old_inode_number) = self.children.lock().remove(old_inode_index);
+            let (_, new_inode_number) = new_inode.children.lock().remove(new_inode_index);
 
-            this.push((new_name.to_string(), new_inode_number));
-            new.push((old_name.to_string(), old_inode_number));
+            self.children
+                .lock()
+                .push((new_name.to_string(), new_inode_number));
+            new_inode
+                .children
+                .lock()
+                .push((old_name.to_string(), old_inode_number));
         } else {
-            let mut this = self.children.lock();
-            let mut new = new_inode.children.lock();
-            let (_, old_inode_number) = this.remove(old_inode_index);
+            let (_, old_inode_number) = self.children.lock().remove(old_inode_index);
             // the new_name may exist or not
             // we only need to delete it if it exists
-            let new_inode_index = new.iter().position(|(n, _)| n == new_name);
+            let new_inode_index = new_inode
+                .children
+                .lock()
+                .iter()
+                .position(|(n, _)| n == new_name);
             if let Some(new_inode_index) = new_inode_index {
-                let (_, new_inode_number) = new.remove(new_inode_index);
+                let (_, new_inode_number) = new_inode.children.lock().remove(new_inode_index);
                 sb.remove_inode(new_inode_number);
             }
-            this.push((new_name.to_string(), old_inode_number));
+            self.children
+                .lock()
+                .push((new_name.to_string(), old_inode_number));
         }
         Ok(())
     }

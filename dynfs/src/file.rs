@@ -9,7 +9,8 @@ use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
 use vfscore::utils::{
-    VfsFileStat, VfsNodePerm, VfsNodeType, VfsPollEvents, VfsRenameFlag, VfsTime, VfsTimeSpec,
+    VfsFileStat, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsPollEvents, VfsRenameFlag, VfsTime,
+    VfsTimeSpec,
 };
 use vfscore::{impl_file_inode_default, VfsResult};
 
@@ -77,6 +78,11 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for Dy
         let mut attr = basic_file_stat(&self.basic);
         let real_attr = self.real_inode()?.get_attr()?;
         attr.st_size = real_attr.st_size;
+        attr.st_mode = VfsInodeMode::from(
+            VfsNodePerm::from_bits_truncate(attr.st_mode as u16),
+            VfsNodeType::File,
+        )
+        .bits();
         Ok(attr)
     }
 

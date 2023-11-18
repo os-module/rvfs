@@ -8,7 +8,9 @@ use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec};
+use vfscore::utils::{
+    VfsFileStat, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec,
+};
 use vfscore::{impl_common_inode_default, VfsResult};
 pub struct RamFsSymLinkInode<T: Send + Sync, R: VfsRawMutex> {
     basic: UniFsInodeSame<T, R>,
@@ -70,6 +72,11 @@ impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsSym
     fn get_attr(&self) -> VfsResult<VfsFileStat> {
         let mut basic = basic_file_stat(&self.basic);
         basic.st_size = self.inner.lock().as_bytes().len() as u64;
+        basic.st_mode = VfsInodeMode::from(
+            VfsNodePerm::from_bits_truncate(basic.st_mode as u16),
+            VfsNodeType::SymLink,
+        )
+        .bits();
         Ok(basic)
     }
     fn list_xattr(&self) -> VfsResult<Vec<String>> {

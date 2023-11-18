@@ -30,21 +30,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     let procfs_root = init_procfs(FS.lock().index("procfs").clone())?;
     let devfs_root = init_devfs(FS.lock().index("devfs").clone())?;
 
-    let proc_inode =
+    let _proc_inode =
         ramfs_root
             .inode()?
             .create("proc", VfsNodeType::Dir, "rwxr-xr-x".into(), None)?;
-    let dev_inode =
+    let _dev_inode =
         ramfs_root
             .inode()?
             .create("dev", VfsNodeType::Dir, "rwxr-xr-x".into(), None)?;
-    let proc_dt = ramfs_root.i_insert("proc", proc_inode.clone())?;
-    let dev_dt = ramfs_root.i_insert("dev", dev_inode.clone())?;
-
-    proc_dt.to_mount_point(procfs_root.clone(), 0)?;
-    dev_dt.to_mount_point(devfs_root.clone(), 0)?;
-
     let path = VfsPath::new(ramfs_root.clone());
+    path.join("proc")?.mount(procfs_root, 0)?;
+    path.join("dev")?.mount(devfs_root, 0)?;
+
     let test1_path = path.join("d1/test1.txt")?;
 
     let dt1 = test1_path.open(Some(
@@ -77,7 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     pid1_dt.i_insert("pid", pid1pid)?;
 
     info!("ramfs tree:");
-    print_fs_tree(&mut OutPut, ramfs_root.clone(), "".to_string())?;
+    print_fs_tree(&mut OutPut, ramfs_root.clone(), "".to_string(), true)?;
     Ok(())
 }
 

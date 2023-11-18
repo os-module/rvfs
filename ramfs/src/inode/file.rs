@@ -7,7 +7,8 @@ use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
 use vfscore::utils::{
-    VfsFileStat, VfsNodePerm, VfsNodeType, VfsPollEvents, VfsRenameFlag, VfsTime, VfsTimeSpec,
+    VfsFileStat, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsPollEvents, VfsRenameFlag, VfsTime,
+    VfsTimeSpec,
 };
 use vfscore::{error::VfsError, impl_file_inode_default, VfsResult};
 pub struct RamFsFileInode<T: Send + Sync, R: VfsRawMutex> {
@@ -51,6 +52,9 @@ impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsFile for RamFsFile
         Ok(len)
     }
     fn write_at(&self, offset: u64, buf: &[u8]) -> VfsResult<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
         let mut inner = self.inner.lock();
         let buf_len = buf.len();
         let offset = offset as usize;
@@ -89,6 +93,11 @@ impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsFil
         let basic = &self.basic;
         let mut stat = basic_file_stat(basic);
         stat.st_size = self.inner.lock().data.len() as u64;
+        stat.st_mode = VfsInodeMode::from(
+            VfsNodePerm::from_bits_truncate(stat.st_mode as u16),
+            VfsNodeType::File,
+        )
+        .bits();
         Ok(stat)
     }
 

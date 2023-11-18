@@ -7,7 +7,9 @@ use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::impl_dir_inode_default;
 use vfscore::inode::InodeAttr;
-use vfscore::utils::{VfsDirEntry, VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime};
+use vfscore::utils::{
+    VfsDirEntry, VfsFileStat, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime,
+};
 
 pub struct DynFsDirInode<T: Send + Sync, R: VfsRawMutex>(UniFsDirInode<T, R>);
 
@@ -137,7 +139,14 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for Dy
     }
 
     fn get_attr(&self) -> VfsResult<VfsFileStat> {
-        self.0.get_attr()
+        self.0.get_attr().map(|mut attr| {
+            attr.st_mode = VfsInodeMode::from(
+                VfsNodePerm::from_bits_truncate(attr.st_mode as u16),
+                VfsNodeType::Dir,
+            )
+            .bits();
+            attr
+        })
     }
 
     fn list_xattr(&self) -> VfsResult<Vec<String>> {

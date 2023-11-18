@@ -9,7 +9,8 @@ use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
 use vfscore::utils::{
-    VfsFileStat, VfsNodePerm, VfsNodeType, VfsPollEvents, VfsRenameFlag, VfsTime, VfsTimeSpec,
+    VfsFileStat, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsPollEvents, VfsRenameFlag, VfsTime,
+    VfsTimeSpec,
 };
 use vfscore::{impl_file_inode_default, VfsResult};
 
@@ -88,6 +89,12 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for DevF
     fn get_attr(&self) -> VfsResult<VfsFileStat> {
         let mut attr = basic_file_stat(&self.basic);
         attr.st_size = 0;
+        attr.st_rdev = self.rdev;
+        attr.st_mode = VfsInodeMode::from(
+            VfsNodePerm::from_bits_truncate(attr.st_mode as u16),
+            self.ty,
+        )
+        .bits();
         Ok(attr)
     }
 

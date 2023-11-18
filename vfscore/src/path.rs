@@ -6,13 +6,13 @@ use crate::inode::VfsInode;
 use crate::utils::{VfsDirEntry, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsRenameFlag};
 use crate::VfsResult;
 use alloc::boxed::Box;
+use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use alloc::{format, vec};
 use core::error::Error;
 use core::fmt::{write, Debug, Formatter, Write};
-use log::error;
+use log::{error};
 
 /// The context of system call
 ///
@@ -62,40 +62,41 @@ impl VfsPath {
 
     /// Appends a path segment to this path, returning the result
     fn join_internal(&self, path: &str) -> VfsResult<Self> {
-        if path.is_empty() {
-            return Ok(self.clone());
-        }
-        let mut new_components: Vec<&str> = vec![];
-        let mut base_path = if path.starts_with('/') {
-            self.root()
-        } else {
-            self.clone()
-        };
-        // Prevent paths from ending in slashes unless this is just the root directory.
-        if path.len() > 1 && path.ends_with('/') {
-            return Err(VfsError::Invalid);
-        }
-        for component in path.split('/') {
-            if component == "." || component.is_empty() {
-                continue;
-            }
-            if component == ".." {
-                if !new_components.is_empty() {
-                    new_components.truncate(new_components.len() - 1);
-                } else {
-                    base_path = base_path.parent();
-                }
-            } else {
-                new_components.push(component);
-            }
-        }
-        let mut path = base_path.path;
-        for component in new_components {
-            path += "/";
-            path += component
-        }
+        // if path.is_empty() {
+        //     return Ok(self.clone());
+        // }
+        // // let path = canonicalize(path);
+        // let mut new_components: Vec<&str> = vec![];
+        // let mut base_path = if path.starts_with('/') {
+        //     self.root()
+        // } else {
+        //     self.clone()
+        // };
+        // for component in path.split('/') {
+        //     if component == "." || component.is_empty() {
+        //         continue;
+        //     }
+        //     if component == ".." {
+        //         if !new_components.is_empty() {
+        //             new_components.truncate(new_components.len() - 1);
+        //         } else {
+        //             base_path = base_path.parent();
+        //         }
+        //     } else {
+        //         new_components.push(component);
+        //     }
+        // }
+        // let mut path = base_path.path;
+        // for component in new_components {
+        //     path += "/";
+        //     path += component
+        // }
+        // Ok(VfsPath {
+        //     path,
+        //     fs: self.fs.clone(),
+        // })
         Ok(VfsPath {
-            path,
+            path: self.path.clone() + "/" + path,
             fs: self.fs.clone(),
         })
     }
@@ -127,7 +128,10 @@ impl VfsPath {
             Ok(d) => Ok(d),
             Err(e) => match e {
                 VfsError::NoEntry if mode.is_some() => {
-                    let ty = mode.unwrap() & VfsInodeMode::TYPE_MASK;
+                    let mut ty = mode.unwrap() & VfsInodeMode::TYPE_MASK;
+                    if ty.is_empty() {
+                        ty = VfsInodeMode::FILE;
+                    }
                     match ty {
                         VfsInodeMode::FILE => self.create_file(mode.unwrap().into()),
                         VfsInodeMode::DIR => self.create_dir(mode.unwrap().into()),
@@ -156,7 +160,7 @@ impl VfsPath {
     ) -> VfsResult<Arc<dyn VfsDentry>> {
         let parent = self.get_parent(action)?;
         // resolve mount point
-        let dentry = real_dentry(parent);
+        let dentry = real_dentry_down(parent);
         let file_name = self.path.rsplit('/').next();
         if file_name.is_none() {
             return Err(VfsError::Invalid);
@@ -166,17 +170,24 @@ impl VfsPath {
         let file = dentry.find(file_name);
         if file.is_none() {
             // second, we find in inode cache or disk
-            let file_inode = dentry.inode()?.lookup(file_name)?;
-            if file.is_some() {
-                let file_inode = file_inode.unwrap();
-                // if we find the inode, we insert it into dentry cache
-                let _ = dentry.insert(file_name, file_inode)?;
-                Err(VfsError::EExist)
-            } else {
-                // otherwise, we create a new inode and insert it into dentry cache
-                let file_inode = dentry.inode()?.create(file_name, ty, perm, None)?;
-                let dir = dentry.insert(file_name, file_inode)?;
-                Ok(dir)
+            let file_inode = dentry.inode()?.lookup(file_name);
+            match file_inode {
+                Ok(x) => {
+                    assert!(x.is_some());
+                    let file_inode = x.unwrap();
+                    dentry.insert(file_name, file_inode)?;
+                    Err(VfsError::EExist)
+                }
+                Err(e) => {
+                    if e == VfsError::NoEntry {
+                        // if we can't find the inode, we create a new inode and insert it into dentry cache
+                        let file_inode = dentry.inode()?.create(file_name, ty, perm, None)?;
+                        let file = dentry.insert(file_name, file_inode)?;
+                        Ok(file)
+                    } else {
+                        Err(e)
+                    }
+                }
             }
         } else {
             Err(VfsError::EExist)
@@ -209,32 +220,41 @@ impl VfsPath {
         loop {
             let (name, rest) = split_path(path);
             let parent_inode = parent.inode()?;
-
-            // if the parent is not a dir, we return Err
-            if !parent_inode.inode_type().is_dir() {
+            if !parent_inode.inode_type().is_dir() && !name.is_empty() {
                 return Err(VfsError::NotDir);
             }
             if name.is_empty() {
                 break;
             }
-            // resolve mount point
-            let dentry = real_dentry(parent);
-            // first, we find in dentry cache
-            let sub_dentry = dentry.find(name);
-            if sub_dentry.is_none() {
-                // second, we find in inode cache or disk
-                let parent_inode = dentry.inode()?;
-                let sub_inode = parent_inode.lookup(name)?;
-                if sub_inode.is_none() {
-                    // if we can't find the inode, we return Err
-                    return Err(VfsError::NoEntry);
+            match name {
+                "." => {}
+                ".." => {
+                    let real_parent = real_dentry_up(parent.clone());
+                    if let Some(p) = real_parent.parent() {
+                        parent = p;
+                    }
                 }
-                // if we find the inode, we insert it into dentry cache
-                let sub_inode = sub_inode.unwrap();
-                let sub_dentry = dentry.insert(name, sub_inode)?;
-                parent = sub_dentry;
-            } else {
-                parent = sub_dentry.unwrap();
+                _ => {
+                    // resolve mount point
+                    let dentry = real_dentry_down(parent.clone());
+                    // first, we find in dentry cache
+                    let sub_dentry = dentry.find(name);
+                    if sub_dentry.is_none() {
+                        // second, we find in inode cache or disk
+                        let parent_inode = dentry.inode()?;
+                        let sub_inode = parent_inode.lookup(name)?;
+                        if sub_inode.is_none() {
+                            // if we can't find the inode, we return Err
+                            return Err(VfsError::NoEntry);
+                        }
+                        // if we find the inode, we insert it into dentry cache
+                        let sub_inode = sub_inode.unwrap();
+                        let sub_dentry = dentry.insert(name, sub_inode)?;
+                        parent = sub_dentry;
+                    } else {
+                        parent = sub_dentry.unwrap();
+                    }
+                }
             }
             if rest.is_none() {
                 break;
@@ -242,7 +262,7 @@ impl VfsPath {
             path = rest.unwrap();
         }
         // resolve mount point
-        let dentry = real_dentry(parent);
+        let dentry = real_dentry_down(parent);
         Ok(dentry)
     }
     pub fn filename(&self) -> String {
@@ -293,7 +313,7 @@ impl VfsPath {
     }
 
     pub fn truncate(&self, len: u64) -> VfsResult<()> {
-        let dt = self.open(None)?;
+        let dt = self.open(None).expect("truncate open failed");
         let inode = dt.inode()?;
         if inode.inode_type() == VfsNodeType::Dir {
             return Err(VfsError::IsDir);
@@ -354,6 +374,31 @@ impl VfsPath {
         }
     }
 
+    pub fn rmdir(&self) -> VfsResult<()> {
+        let dt = self.open(None)?;
+        let inode = dt.inode()?;
+        if inode.inode_type() != VfsNodeType::Dir {
+            return Err(VfsError::NotDir);
+        }
+        let parent = self.get_parent("rmdir")?;
+        let parent_inode = parent.inode()?;
+        let perm = parent_inode.node_perm();
+
+        if !perm.contains(VfsNodePerm::OTHER_WRITE)
+            && !perm.contains(VfsNodePerm::GROUP_WRITE)
+            && !perm.contains(VfsNodePerm::OWNER_WRITE)
+        {
+            return Err(VfsError::Access);
+        }
+        let name = self.filename();
+        assert!(!name.is_empty());
+        // todo! access check
+        parent_inode.rmdir(&name)?;
+        // remove the dentry from cache
+        parent.remove(&name);
+        Ok(())
+    }
+
     pub fn unlink(&self) -> VfsResult<()> {
         let dt = self.open(None)?;
         let inode = dt.inode()?;
@@ -363,9 +408,12 @@ impl VfsPath {
         let parent = self.get_parent("unlink")?;
         let parent_inode = parent.inode()?;
 
-        if !parent_inode.node_perm().contains(
-            VfsNodePerm::OTHER_WRITE | VfsNodePerm::GROUP_WRITE | VfsNodePerm::OWNER_WRITE,
-        ) {
+        let perm = parent_inode.node_perm();
+
+        if !perm.contains(VfsNodePerm::OTHER_WRITE)
+            && !perm.contains(VfsNodePerm::GROUP_WRITE)
+            && !perm.contains(VfsNodePerm::OWNER_WRITE)
+        {
             return Err(VfsError::Access);
         }
         let name = self.filename();
@@ -389,7 +437,7 @@ impl VfsPath {
         let new_dt = new_vfs_path.open(None);
         if new_dt.is_err() {
             let err = new_dt.err().unwrap();
-            if !(err == VfsError::NoEntry) {
+            if err != VfsError::NoEntry {
                 return Err(err);
             }
             // new path not exist
@@ -472,14 +520,14 @@ impl VfsPath {
 
 /// Check whether the dentry has write permission
 fn checkout_write_perm(dentry: &Arc<dyn VfsDentry>) -> VfsResult<()> {
-    if dentry
-        .inode()?
-        .node_perm()
-        .contains(VfsNodePerm::OTHER_WRITE | VfsNodePerm::GROUP_WRITE | VfsNodePerm::OWNER_WRITE)
+    let perm = dentry.inode()?.node_perm();
+    if !perm.contains(VfsNodePerm::OTHER_WRITE)
+        && !perm.contains(VfsNodePerm::GROUP_WRITE)
+        && !perm.contains(VfsNodePerm::OWNER_WRITE)
     {
-        Ok(())
-    } else {
         Err(VfsError::Access)
+    } else {
+        Ok(())
     }
 }
 
@@ -502,10 +550,23 @@ fn check_same_fs(dentry1: &Arc<dyn VfsDentry>, dentry2: &Arc<dyn VfsDentry>) -> 
     Ok(())
 }
 
-fn real_dentry(dentry: Arc<dyn VfsDentry>) -> Arc<dyn VfsDentry> {
+fn real_dentry_down(dentry: Arc<dyn VfsDentry>) -> Arc<dyn VfsDentry> {
     if dentry.is_mount_point() {
         let mnt = dentry.mount_point().unwrap();
-        real_dentry(mnt.root)
+        real_dentry_down(mnt.root)
+    } else {
+        dentry
+    }
+}
+
+/// "/bin/x/"
+fn real_dentry_up(dentry: Arc<dyn VfsDentry>) -> Arc<dyn VfsDentry> {
+    if dentry.name() == "/" {
+        if let Some(parent) = dentry.parent() {
+            real_dentry_up(parent)
+        } else {
+            dentry
+        }
     } else {
         dentry
     }
@@ -517,6 +578,85 @@ fn split_path(path: &str) -> (&str, Option<&str>) {
         (&trimmed_path[..n], Some(&trimmed_path[n + 1..]))
     })
 }
+
+#[allow(unused)]
+fn canonicalize(path: &str) -> String {
+    let mut buf = String::new();
+    let is_absolute = path.starts_with('/');
+    for part in path.split('/') {
+        match part {
+            "" | "." => continue,
+            ".." => {
+                while !buf.is_empty() {
+                    if buf == "/" {
+                        break;
+                    }
+                    let c = buf.pop().unwrap();
+                    if c == '/' {
+                        break;
+                    }
+                }
+            }
+            _ => {
+                if buf.is_empty() {
+                    if is_absolute {
+                        buf.push('/');
+                    }
+                } else if &buf[buf.len() - 1..] != "/" {
+                    buf.push('/');
+                }
+                buf.push_str(part);
+            }
+        }
+    }
+    if is_absolute && buf.is_empty() {
+        buf.push('/');
+    }
+    buf
+}
+
+#[test]
+fn test_canonicalize() {
+    // assert_eq!(canonicalize("."), "");
+    // assert_eq!(canonicalize(".."), "..");
+    assert_eq!(canonicalize(""), "");
+    assert_eq!(canonicalize("///"), "/");
+    assert_eq!(canonicalize("//a//.//b///c//"), "/a/b/c");
+    assert_eq!(canonicalize("/a/../"), "/");
+    assert_eq!(canonicalize("/a/../..///"), "/");
+    assert_eq!(canonicalize("a/../"), "");
+    assert_eq!(canonicalize("a/..//.."), "");
+    assert_eq!(canonicalize("././a"), "a");
+    assert_eq!(canonicalize(".././a"), "a");
+    assert_eq!(canonicalize("/././a"), "/a");
+    assert_eq!(canonicalize("/abc/../abc"), "/abc");
+    assert_eq!(canonicalize("/test"), "/test");
+    assert_eq!(canonicalize("/test/"), "/test");
+    assert_eq!(canonicalize("test/"), "test");
+    assert_eq!(canonicalize("test"), "test");
+    assert_eq!(canonicalize("/test//"), "/test");
+    assert_eq!(canonicalize("/test/foo"), "/test/foo");
+    assert_eq!(canonicalize("/test/foo/"), "/test/foo");
+    assert_eq!(canonicalize("/test/foo/bar"), "/test/foo/bar");
+    assert_eq!(canonicalize("/test/foo/bar//"), "/test/foo/bar");
+    assert_eq!(canonicalize("/test//foo/bar//"), "/test/foo/bar");
+    assert_eq!(canonicalize("/test//./foo/bar//"), "/test/foo/bar");
+    assert_eq!(canonicalize("/test//./.foo/bar//"), "/test/.foo/bar");
+    assert_eq!(canonicalize("/test//./..foo/bar//"), "/test/..foo/bar");
+    assert_eq!(canonicalize("/test//./../foo/bar//"), "/foo/bar");
+    assert_eq!(canonicalize("/test/../foo"), "/foo");
+    assert_eq!(canonicalize("/test/bar/../foo"), "/test/foo");
+    assert_eq!(canonicalize("../foo"), "foo");
+    assert_eq!(canonicalize("../foo/"), "foo");
+    assert_eq!(canonicalize("/../foo"), "/foo");
+    assert_eq!(canonicalize("/../foo/"), "/foo");
+    assert_eq!(canonicalize("/../../foo"), "/foo");
+    assert_eq!(canonicalize("/bleh/../../foo"), "/foo");
+    assert_eq!(canonicalize("/bleh/bar/../../foo"), "/foo");
+    assert_eq!(canonicalize("/bleh/bar/../../foo/.."), "/");
+    assert_eq!(canonicalize("/bleh/bar/../../foo/../meh"), "/meh");
+}
+
 const B: u64 = 1024;
 const KB: u64 = 1024 * 1024;
 const MB: u64 = 1024 * 1024 * 1024;
@@ -536,6 +676,7 @@ pub fn print_fs_tree(
     output: &mut dyn Write,
     root: Arc<dyn VfsDentry>,
     prefix: String,
+    recursive: bool,
 ) -> Result<(), Box<dyn Error>> {
     let mut children = root.inode()?.children();
     let mut child = children.next();
@@ -570,7 +711,7 @@ pub fn print_fs_tree(
         )
         .unwrap();
 
-        if inode_type == VfsNodeType::Dir && name != "." && name != ".." {
+        if inode_type == VfsNodeType::Dir && name != "." && name != ".." && recursive {
             let d = root.find(&name);
             let sub_dt = if let Some(d) = d {
                 d
@@ -579,8 +720,8 @@ pub fn print_fs_tree(
 
                 root.i_insert(&name, d)?
             };
-            let sub_dt = real_dentry(sub_dt);
-            print_fs_tree(output, sub_dt, prefix.clone() + "  ")?;
+            let sub_dt = real_dentry_down(sub_dt);
+            print_fs_tree(output, sub_dt, prefix.clone() + "  ", recursive)?;
         }
         child = children.next();
     }
@@ -700,7 +841,9 @@ mod tests {
             path.join("foo/bar.txt").unwrap(),
             foo.join("bar.txt").unwrap()
         );
-        assert_eq!(path, foo.join("..").unwrap());
+        // assert_eq!(path, path.join(".").unwrap());
+        // assert_eq!(path, path.join("./").unwrap());
+        assert_eq!(path.join("..").unwrap().as_str(), "/..");
     }
 
     #[test]

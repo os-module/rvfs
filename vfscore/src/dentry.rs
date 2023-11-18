@@ -5,6 +5,7 @@ use alloc::string::String;
 use alloc::sync::Arc;
 
 use downcast_rs::{impl_downcast, DowncastSync};
+use log::warn;
 
 pub trait VfsDentry: Send + Sync + DowncastSync {
     /// Return the name of this dentry
@@ -50,7 +51,11 @@ pub trait VfsDentry: Send + Sync + DowncastSync {
     /// Get the path of this dentry
     fn path(&self) -> String {
         if let Some(p) = self.parent() {
-            let path = String::from("/") + self.name().as_str();
+            let path = if self.name() == "/" {
+                String::from("")
+            } else {
+                String::from("/") + self.name().as_str()
+            };
             let parent_name = p.name();
             return if parent_name == "/" {
                 if p.parent().is_some() {
@@ -64,6 +69,7 @@ pub trait VfsDentry: Send + Sync + DowncastSync {
                 p.path() + path.as_str()
             };
         } else {
+            warn!("dentry has no parent");
             String::from("/")
         }
     }

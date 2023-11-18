@@ -6,11 +6,14 @@ use alloc::string::{String, ToString};
 use alloc::sync::Weak;
 use alloc::vec::Vec;
 use fatfs::{Error, Seek};
+
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{VfsDirEntry, VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime};
+use vfscore::utils::{
+    VfsDirEntry, VfsFileStat, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime,
+};
 use vfscore::{impl_dir_inode_default, VfsResult};
 
 pub struct FatFsDirInode<R: VfsRawMutex> {
@@ -233,11 +236,11 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
 
     fn get_attr(&self) -> VfsResult<VfsFileStat> {
         let attr = self.attr.inner.lock();
-
+        let mode = VfsInodeMode::from(attr.perm, VfsNodeType::Dir).bits();
         Ok(VfsFileStat {
             st_dev: 0,
             st_ino: 1,
-            st_mode: attr.perm.bits() as u32,
+            st_mode: mode,
             st_nlink: 1,
             st_uid: 0,
             st_gid: 0,
@@ -272,12 +275,20 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
             let new_parent = new_parent
                 .downcast_arc::<FatFsDirInode<R>>()
                 .map_err(|_| VfsError::Invalid)?;
-            dir.rename(old_name, &*new_parent.dir.lock(), new_name)
-                .map_err(|e| match e {
+            if Arc::ptr_eq(&self.dir, &new_parent.dir) {
+                dir.rename(old_name, &*dir, new_name).map_err(|e| match e {
                     Error::NotFound => VfsError::NoEntry,
                     Error::AlreadyExists => VfsError::EExist,
                     _ => VfsError::IoError,
                 })?;
+            } else {
+                dir.rename(old_name, &*new_parent.dir.lock(), new_name)
+                    .map_err(|e| match e {
+                        Error::NotFound => VfsError::NoEntry,
+                        Error::AlreadyExists => VfsError::EExist,
+                        _ => VfsError::IoError,
+                    })?;
+            };
             self.inode_cache.lock().remove(old_name);
             new_parent.inode_cache.lock().remove(new_name);
         }

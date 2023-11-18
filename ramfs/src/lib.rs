@@ -67,12 +67,15 @@ impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for RamFs<T
         let sb = sb
             .downcast_arc::<UniFsSuperBlock<R>>()
             .map_err(|_| VfsError::Invalid)?;
-        if let Some((index, _)) = self.fs_container.lock().iter().enumerate().find(|(_, fs)| {
+
+        let mut fs_container = self.fs_container.lock();
+
+        if let Some((index, _)) = fs_container.iter().enumerate().find(|(_, fs)| {
             let isb = fs.sb.lock();
             isb.is_some() && Arc::ptr_eq(isb.as_ref().unwrap(), &sb)
         }) {
             info!("kill ramfs sb success");
-            self.fs_container.lock().remove(index);
+            fs_container.remove(index);
             Ok(())
         } else {
             Err(VfsError::Invalid)

@@ -4,6 +4,7 @@ use spin::mutex::Mutex;
 use std::error::Error;
 use std::sync::Arc;
 use vfscore::fstype::VfsFsType;
+use vfscore::path::DirIter;
 use vfscore::utils::{VfsNodePerm, VfsNodeType, VfsTimeSpec};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -76,27 +77,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     let new_sb = new_ramfs_root.inode()?.get_super_block()?;
     // mount the ramfs to the mount_dir
     mnt_dt.clone().to_mount_point(new_ramfs_root.clone(), 0)?;
+    new_ramfs_root.set_parent(&mnt_dt);
     mnt_dt
         .is_mount_point()
         .then(|| info!("create a mount point"));
 
     println!("root dir: ");
     // readdir
-    let mut index = 0;
-    loop {
-        let dir_entry = root_inode.readdir(index)?;
-        if dir_entry.is_none() {
-            break;
-        }
-        let dir_entry = dir_entry.unwrap();
-        println!("{:?}", dir_entry);
-        index += 1;
-    }
-
+    root_inode.children().for_each(|x| println!("{}", x.name));
     // unmount the ramfs
     ramfs.kill_sb(sb)?;
     ramfs.kill_sb(new_sb)?;
-
     Ok(())
 }
 

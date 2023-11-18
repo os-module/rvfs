@@ -294,6 +294,23 @@ impl From<VfsInodeMode> for VfsNodePerm {
     }
 }
 
+impl VfsInodeMode {
+    pub fn from(perm: VfsNodePerm, ty: VfsNodeType) -> Self {
+        let mut mode = VfsInodeMode::from_bits_truncate(perm.bits as u32);
+        match ty {
+            VfsNodeType::Fifo => mode |= VfsInodeMode::FIFO,
+            VfsNodeType::CharDevice => mode |= VfsInodeMode::CHAR,
+            VfsNodeType::Dir => mode |= VfsInodeMode::DIR,
+            VfsNodeType::BlockDevice => mode |= VfsInodeMode::BLOCK,
+            VfsNodeType::File => mode |= VfsInodeMode::FILE,
+            VfsNodeType::SymLink => mode |= VfsInodeMode::LINK,
+            VfsNodeType::Socket => mode |= VfsInodeMode::SOCKET,
+            _ => panic!("Invalid inode type"),
+        }
+        mode
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -356,6 +373,7 @@ pub struct VfsFsStat {
 }
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
+#[repr(C)]
 pub struct VfsFileStat {
     pub st_dev: u64,
     pub st_ino: u64,

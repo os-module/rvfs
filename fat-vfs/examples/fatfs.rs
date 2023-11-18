@@ -145,7 +145,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     //    |--..
     // |--f2
     // |--f3
-    print_fs_tree(&mut FakeWriter, root.clone(), "".to_string())?;
+    print_fs_tree(&mut FakeWriter, root.clone(), "".to_string(), true)?;
     let sb = root.inode()?.get_super_block()?;
     fatfs.kill_sb(sb)?; //like unmount up
 

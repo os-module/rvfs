@@ -7,6 +7,7 @@ use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::fstype::VfsFsType;
 use vfscore::inode::{InodeAttr, VfsInode};
+use vfscore::path::DirIter;
 
 use vfscore::utils::*;
 use vfscore::VfsResult;
@@ -55,16 +56,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .then(|| error!("should not create file"));
     println!("root dir: ");
     // readdir
-    let mut index = 0;
-    loop {
-        let dir_entry = root_inode.readdir(index)?;
-        if dir_entry.is_none() {
-            break;
-        }
-        let dir_entry = dir_entry.unwrap();
-        println!("{:?}", dir_entry);
-        index += 1;
-    }
+    root_inode.children().for_each(|x| println!("{}", x.name));
+
     let null_inode = root_inode.lookup("null")?.unwrap();
     let zero_inode = root_inode.lookup("zero")?.unwrap();
 

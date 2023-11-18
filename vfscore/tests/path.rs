@@ -78,6 +78,11 @@ fn test_dentry_path() {
     let path = VfsPath::new(root);
     let new_dd1_dt___ = path.join("./d1/dd1/d1/dd1").unwrap().open(None).unwrap();
     assert!(Arc::ptr_eq(&new_dd1_dt___, &new_dd1_dt));
+
+    let new_root_ = path.join("./d1/dd1").unwrap().open(None).unwrap();
+    assert!(Arc::ptr_eq(&new_root_, &new_root));
+    let path = new_root_.path();
+    assert_eq!(path, "/d1/dd1");
 }
 
 #[test]
