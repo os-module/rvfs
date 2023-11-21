@@ -61,7 +61,7 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> DynFsDirInode<T
             .children
             .lock()
             .push((name.to_string(), inode_number));
-        Ok(res.clone())
+        Ok(res)
     }
     pub fn add_file_manually(
         &self,
@@ -78,7 +78,10 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> DynFsDirInode<T
 
     pub fn remove_manually(&self, name: &str) -> VfsResult<()> {
         let mut children = self.0.children.lock();
-        let index = children.iter().position(|(n, _)| n == name).unwrap();
+        let index = children
+            .iter()
+            .position(|(n, _)| n == name)
+            .ok_or(VfsError::NoEntry)?;
         let (_, inode_number) = children.remove(index);
         let sb = self.0.basic.sb.upgrade().unwrap();
         sb.remove_inode(inode_number);
@@ -125,7 +128,7 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for Dy
         Err(VfsError::NoSys)
     }
 
-    fn lookup(&self, name: &str) -> VfsResult<Option<Arc<dyn VfsInode>>> {
+    fn lookup(&self, name: &str) -> VfsResult<Arc<dyn VfsInode>> {
         self.0.lookup(name)
     }
     fn rmdir(&self, _name: &str) -> VfsResult<()> {

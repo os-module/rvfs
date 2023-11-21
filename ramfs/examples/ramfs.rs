@@ -34,8 +34,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // lookup in inode second
     root_inode
-        .lookup("test")?
-        .is_none()
+        .lookup("test")
+        .is_err()
         .then(|| error!("lookup test file error"));
 
     // if we can't find in the dentry cache and inode, we will create a new inode

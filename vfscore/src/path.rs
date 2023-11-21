@@ -12,7 +12,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::error::Error;
 use core::fmt::{write, Debug, Formatter, Write};
-use log::{error};
+use log::error;
 
 /// The context of system call
 ///
@@ -55,48 +55,10 @@ impl VfsPath {
     pub fn as_str(&self) -> &str {
         &self.path
     }
-
-    pub fn join(&self, path: impl AsRef<str>) -> VfsResult<Self> {
-        self.join_internal(path.as_ref())
-    }
-
     /// Appends a path segment to this path, returning the result
-    fn join_internal(&self, path: &str) -> VfsResult<Self> {
-        // if path.is_empty() {
-        //     return Ok(self.clone());
-        // }
-        // // let path = canonicalize(path);
-        // let mut new_components: Vec<&str> = vec![];
-        // let mut base_path = if path.starts_with('/') {
-        //     self.root()
-        // } else {
-        //     self.clone()
-        // };
-        // for component in path.split('/') {
-        //     if component == "." || component.is_empty() {
-        //         continue;
-        //     }
-        //     if component == ".." {
-        //         if !new_components.is_empty() {
-        //             new_components.truncate(new_components.len() - 1);
-        //         } else {
-        //             base_path = base_path.parent();
-        //         }
-        //     } else {
-        //         new_components.push(component);
-        //     }
-        // }
-        // let mut path = base_path.path;
-        // for component in new_components {
-        //     path += "/";
-        //     path += component
-        // }
-        // Ok(VfsPath {
-        //     path,
-        //     fs: self.fs.clone(),
-        // })
+    pub fn join(&self, path: impl AsRef<str>) -> VfsResult<Self> {
         Ok(VfsPath {
-            path: self.path.clone() + "/" + path,
+            path: self.path.clone() + "/" + path.as_ref(),
             fs: self.fs.clone(),
         })
     }
@@ -173,9 +135,7 @@ impl VfsPath {
             let file_inode = dentry.inode()?.lookup(file_name);
             match file_inode {
                 Ok(x) => {
-                    assert!(x.is_some());
-                    let file_inode = x.unwrap();
-                    dentry.insert(file_name, file_inode)?;
+                    dentry.insert(file_name, x)?;
                     Err(VfsError::EExist)
                 }
                 Err(e) => {
@@ -243,12 +203,7 @@ impl VfsPath {
                         // second, we find in inode cache or disk
                         let parent_inode = dentry.inode()?;
                         let sub_inode = parent_inode.lookup(name)?;
-                        if sub_inode.is_none() {
-                            // if we can't find the inode, we return Err
-                            return Err(VfsError::NoEntry);
-                        }
                         // if we find the inode, we insert it into dentry cache
-                        let sub_inode = sub_inode.unwrap();
                         let sub_dentry = dentry.insert(name, sub_inode)?;
                         parent = sub_dentry;
                     } else {
@@ -683,7 +638,7 @@ pub fn print_fs_tree(
     while let Some(c) = child {
         let name = c.name;
         let inode_type = c.ty;
-        let inode = root.inode()?.lookup(&name)?.unwrap();
+        let inode = root.inode()?.lookup(&name)?;
         let stat = inode.get_attr()?;
         let perm = VfsNodePerm::from_bits_truncate(stat.st_mode as u16);
         let rwx_buf = perm.rwx_buf();
@@ -716,8 +671,7 @@ pub fn print_fs_tree(
             let sub_dt = if let Some(d) = d {
                 d
             } else {
-                let d = root.inode()?.lookup(&name)?.unwrap();
-
+                let d = root.inode()?.lookup(&name)?;
                 root.i_insert(&name, d)?
             };
             let sub_dt = real_dentry_down(sub_dt);

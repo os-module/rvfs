@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("inode: {:?}", x.name);
     });
 
-    let p = root_inode.lookup("2")?.unwrap();
+    let p = root_inode.lookup("2")?;
     let mut buf = [0; 10];
     let r = p.read_at(0, &mut buf)?;
     let content = core::str::from_utf8(&buf[..r]).unwrap();

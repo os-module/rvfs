@@ -114,7 +114,7 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for DevF
         Err(VfsError::NoSys)
     }
 
-    fn lookup(&self, name: &str) -> VfsResult<Option<Arc<dyn VfsInode>>> {
+    fn lookup(&self, name: &str) -> VfsResult<Arc<dyn VfsInode>> {
         self.0.lookup(name)
     }
 

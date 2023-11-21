@@ -187,7 +187,7 @@ impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsInode for RamFsDir
         sb.insert_inode(inode_number, inode.clone());
         Ok(inode)
     }
-    fn lookup(&self, name: &str) -> VfsResult<Option<Arc<dyn VfsInode>>> {
+    fn lookup(&self, name: &str) -> VfsResult<Arc<dyn VfsInode>> {
         self.inode.lookup(name)
     }
 

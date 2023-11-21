@@ -172,10 +172,10 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
         self.delete_file(name, VfsNodeType::File)
     }
 
-    fn lookup(&self, name: &str) -> VfsResult<Option<Arc<dyn VfsInode>>> {
+    fn lookup(&self, name: &str) -> VfsResult<Arc<dyn VfsInode>> {
         let mut inode_cache = self.inode_cache.lock();
         if let Some(inode) = inode_cache.get(name) {
-            return Ok(Some(inode.clone()));
+            return Ok(inode.clone());
         }
         let dir = self.dir.lock();
 
@@ -204,7 +204,7 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
                 );
                 let inode = Arc::new(inode);
                 inode_cache.insert(name.to_string(), inode.clone());
-                return Ok(Some(inode));
+                return Ok(inode);
             }
             Err(VfsError::IoError)
         } else {
@@ -223,7 +223,7 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
             );
             let inode = Arc::new(inode);
             inode_cache.insert(name.to_string(), inode.clone());
-            Ok(Some(inode))
+            Ok(inode)
         }
     }
 

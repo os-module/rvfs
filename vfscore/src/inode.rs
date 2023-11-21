@@ -57,7 +57,7 @@ pub trait VfsInode: DowncastSync + VfsFile {
     fn symlink(&self, _name: &str, _sy_name: &str) -> VfsResult<Arc<dyn VfsInode>> {
         Err(VfsError::NoSys)
     }
-    fn lookup(&self, _name: &str) -> VfsResult<Option<Arc<dyn VfsInode>>> {
+    fn lookup(&self, _name: &str) -> VfsResult<Arc<dyn VfsInode>> {
         Err(VfsError::NoSys)
     }
     fn rmdir(&self, _name: &str) -> VfsResult<()> {
@@ -146,7 +146,7 @@ macro_rules! impl_common_inode_default {
         fn symlink(&self, _name: &str, _target: &str) -> VfsResult<Arc<dyn VfsInode>> {
             Err(VfsError::NoSys)
         }
-        fn lookup(&self, _name: &str) -> VfsResult<Option<Arc<dyn VfsInode>>> {
+        fn lookup(&self, _name: &str) -> VfsResult<Arc<dyn VfsInode>> {
             Err(VfsError::NoSys)
         }
         fn rmdir(&self, _name: &str) -> VfsResult<()> {
@@ -189,7 +189,7 @@ macro_rules! impl_file_inode_default {
         fn symlink(&self, _name: &str, _target: &str) -> VfsResult<Arc<dyn VfsInode>> {
             Err(VfsError::NoSys)
         }
-        fn lookup(&self, _name: &str) -> VfsResult<Option<Arc<dyn VfsInode>>> {
+        fn lookup(&self, _name: &str) -> VfsResult<Arc<dyn VfsInode>> {
             Err(VfsError::NoSys)
         }
         fn rmdir(&self, _name: &str) -> VfsResult<()> {

@@ -75,18 +75,18 @@ impl<T: Send + Sync + 'static, R: VfsRawMutex + 'static> UniFsDirInode<T, R> {
         res.map(|sb| sb as Arc<dyn VfsSuperBlock>)
     }
 
-    pub fn lookup(&self, name: &str) -> VfsResult<Option<Arc<dyn VfsInode>>> {
+    pub fn lookup(&self, name: &str) -> VfsResult<Arc<dyn VfsInode>> {
         let sb = self.basic.sb.upgrade().unwrap();
         let res = self
             .children
             .lock()
             .iter()
             .find(|(item_name, _item)| item_name.as_str() == name)
-            .map(|(_, inode_number)| sb.get_inode(*inode_number));
+            .map(|(_, inode_number)| sb.get_inode(*inode_number).unwrap());
         if let Some(res) = res {
             Ok(res)
         } else {
-            Ok(None)
+            Err(VfsError::NoEntry)
         }
     }
 

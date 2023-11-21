@@ -23,29 +23,29 @@ pub fn init_ramfs(ramfs: Arc<dyn VfsFsType>) -> Result<Arc<dyn VfsDentry>, Box<d
         VfsNodePerm::from_bits_truncate(0o666),
         None,
     )?;
-    let f2 = root_inode.create(
+    let _f2 = root_inode.create(
         "f2.txt",
         VfsNodeType::File,
         VfsNodePerm::from_bits_truncate(0o666),
         None,
     )?;
-    let d1 = root_inode.create(
+    let _d1 = root_inode.create(
         "d1",
         VfsNodeType::Dir,
         VfsNodePerm::from_bits_truncate(0o755),
         None,
     )?;
-    let d2 = root_inode.create(
+    let _d2 = root_inode.create(
         "d2",
         VfsNodeType::Dir,
         VfsNodePerm::from_bits_truncate(0o755),
         None,
     )?;
 
-    root_dt.i_insert("f1.txt", f1.clone())?;
-    root_dt.i_insert("f2.txt", f2.clone())?;
-    root_dt.i_insert("d1", d1.clone())?;
-    root_dt.i_insert("d2", d2.clone())?;
+    // root_dt.i_insert("f1.txt", f1.clone())?;
+    // root_dt.i_insert("f2.txt", f2.clone())?;
+    // root_dt.i_insert("d1", d1.clone())?;
+    // root_dt.i_insert("d2", d2.clone())?;
 
     let f3 = root_inode.link("f3.txt", f1.clone())?;
     root_dt.i_insert("f3.txt", f3.clone())?;

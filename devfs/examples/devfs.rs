@@ -58,8 +58,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     // readdir
     root_inode.children().for_each(|x| println!("{}", x.name));
 
-    let null_inode = root_inode.lookup("null")?.unwrap();
-    let zero_inode = root_inode.lookup("zero")?.unwrap();
+    let null_inode = root_inode.lookup("null")?;
+    let zero_inode = root_inode.lookup("zero")?;
 
     let w = null_inode.write_at(0, &[0u8; 10])?;
     assert_eq!(w, 10);
