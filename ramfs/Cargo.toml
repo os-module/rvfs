@@ -10,7 +10,7 @@ lock_api = {version = "0",default-features = false}
 vfscore = {path = "../vfscore"}
 log = "0.4.14"
 unifs = {path = "../unifs"}
-
+pconst = { git = "https://github.com/os-module/pconst.git" }
 
 [dev-dependencies]
 spin = "0"

@@ -108,6 +108,9 @@ impl<R: VfsRawMutex + 'static> VfsFile for FatFsDirInode<R> {
             Ok(None)
         }
     }
+    fn ioctl(&self, _cmd: u32, _arg: usize) -> VfsResult<usize> {
+        Err(VfsError::NoTTY)
+    }
 }
 
 impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
@@ -168,10 +171,17 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
         }
     }
 
+    fn link(&self, _name: &str, _src: Arc<dyn VfsInode>) -> VfsResult<Arc<dyn VfsInode>> {
+        Err(VfsError::NoSys)
+    }
+
     fn unlink(&self, name: &str) -> VfsResult<()> {
         self.delete_file(name, VfsNodeType::File)
     }
 
+    fn symlink(&self, _name: &str, _sy_name: &str) -> VfsResult<Arc<dyn VfsInode>> {
+        Err(VfsError::NoSys)
+    }
     fn lookup(&self, name: &str) -> VfsResult<Arc<dyn VfsInode>> {
         let mut inode_cache = self.inode_cache.lock();
         if let Some(inode) = inode_cache.get(name) {
@@ -230,6 +240,7 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
     fn rmdir(&self, name: &str) -> VfsResult<()> {
         self.delete_file(name, VfsNodeType::Dir)
     }
+
     fn set_attr(&self, _attr: InodeAttr) -> VfsResult<()> {
         Ok(())
     }
@@ -255,6 +266,12 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
             st_ctime: attr.ctime,
             unused: 0,
         })
+    }
+
+    impl_dir_inode_default!();
+
+    fn list_xattr(&self) -> VfsResult<Vec<String>> {
+        Err(VfsError::NoSys)
     }
 
     fn inode_type(&self) -> VfsNodeType {
@@ -293,20 +310,6 @@ impl<R: VfsRawMutex + 'static> VfsInode for FatFsDirInode<R> {
             new_parent.inode_cache.lock().remove(new_name);
         }
         Ok(())
-    }
-
-    impl_dir_inode_default!();
-
-    fn link(&self, _name: &str, _src: Arc<dyn VfsInode>) -> VfsResult<Arc<dyn VfsInode>> {
-        Err(VfsError::NoSys)
-    }
-
-    fn symlink(&self, _name: &str, _sy_name: &str) -> VfsResult<Arc<dyn VfsInode>> {
-        Err(VfsError::NoSys)
-    }
-
-    fn list_xattr(&self) -> VfsResult<Vec<String>> {
-        Err(VfsError::NoSys)
     }
     fn update_time(&self, time: VfsTime, now: VfsTimeSpec) -> VfsResult<()> {
         let mut attr = self.attr.inner.lock();

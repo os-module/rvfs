@@ -344,6 +344,7 @@ pub enum VfsTime {
     ModifiedTime(VfsTimeSpec),
 }
 
+#[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct VfsFsStat {
     /// 是个 magic number，每个知名的 fs 都各有定义，但显然我们没有

@@ -2,6 +2,7 @@ use super::*;
 use crate::RamFsProvider;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+
 use unifs::inode::basic_file_stat;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
@@ -70,7 +71,9 @@ impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsFile for RamFsFile
         todo!()
     }
     fn ioctl(&self, _cmd: u32, _arg: usize) -> VfsResult<usize> {
-        todo!()
+        // let cmd = pconst::io::TeletypeCommand::try_from(cmd).map_err(|_| VfsError::Invalid)?;
+        // warn!("not support ioctl, cmd: {:?}, arg: {:x}", cmd, arg);
+        Err(VfsError::NoTTY)
     }
 }
 

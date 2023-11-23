@@ -131,7 +131,9 @@ impl<R: VfsRawMutex + 'static> FatFsSuperBlock<R> {
 
 impl<R: VfsRawMutex + 'static> VfsSuperBlock for FatFsSuperBlock<R> {
     fn sync_fs(&self, _wait: bool) -> VfsResult<()> {
-        todo!()
+        self.fat_dev.device_file.flush()?;
+        self.fat_dev.device_file.fsync()?;
+        Ok(())
     }
 
     fn stat_fs(&self) -> VfsResult<VfsFsStat> {
@@ -151,7 +153,7 @@ impl<R: VfsRawMutex + 'static> VfsSuperBlock for FatFsSuperBlock<R> {
             f_files: 0,
             f_ffree: 0,
             f_fsid: [0, 0],
-            f_namelen: 0,
+            f_namelen: 255,
             f_frsize: 0,
             f_flags: 0,
             f_spare: [0; 4],

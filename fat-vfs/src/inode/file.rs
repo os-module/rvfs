@@ -11,9 +11,7 @@ use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{
-    VfsFileStat, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsPollEvents, VfsRenameFlag, VfsTime,
-};
+use vfscore::utils::{VfsFileStat, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime};
 use vfscore::{impl_file_inode_default, VfsResult};
 
 pub struct FatFsFileInode<R: VfsRawMutex> {
@@ -95,8 +93,8 @@ impl<R: VfsRawMutex + 'static> VfsFile for FatFsFileInode<R> {
         }
         Ok(buf.len())
     }
-    fn poll(&self, _event: VfsPollEvents) -> VfsResult<VfsPollEvents> {
-        todo!()
+    fn ioctl(&self, _cmd: u32, _arg: usize) -> VfsResult<usize> {
+        Err(VfsError::NoTTY)
     }
     fn flush(&self) -> VfsResult<()> {
         self.fsync()

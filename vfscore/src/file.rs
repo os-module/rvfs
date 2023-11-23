@@ -17,8 +17,15 @@ pub trait VfsFile: Send + Sync + DowncastSync {
     fn readdir(&self, _start_index: usize) -> VfsResult<Option<VfsDirEntry>> {
         Err(VfsError::NoSys)
     }
-    fn poll(&self, _event: VfsPollEvents) -> VfsResult<VfsPollEvents> {
-        Err(VfsError::NoSys)
+    fn poll(&self, event: VfsPollEvents) -> VfsResult<VfsPollEvents> {
+        let mut res = VfsPollEvents::empty();
+        if event.contains(VfsPollEvents::IN) {
+            res |= VfsPollEvents::IN;
+        }
+        if event.contains(VfsPollEvents::OUT) {
+            res |= VfsPollEvents::OUT;
+        }
+        Ok(res)
     }
     fn ioctl(&self, _cmd: u32, _arg: usize) -> VfsResult<usize> {
         Err(VfsError::NoSys)
