@@ -9,7 +9,7 @@ The virtual file system is a file system abstraction layer. The virtual file sys
 - [x] DevFs
 - [x] DynFs(It can be used as procfs/sysfs)
 - [x] VfsCore
-- [ ] ExtFs
+- [x] ExtFs
 - [x] FatFs
 - [ ] ...
 
@@ -23,11 +23,12 @@ RUST_LOG=info cargo run -p demo
 
 ## Usage
 ```
-devfs = {path = "../devfs"}
-ramfs = {path = "../ramfs"}
-dynfs = {path = "../dynfs"}
-fat-vfs = {path = "../fat-vfs"}
-vfscore = {path = "../vfscore"}
+devfs = { git = "https://github.com/os-module/rvfs" }
+ramfs = { git = "https://github.com/os-module/rvfs" }
+dynfs = { git = "https://github.com/os-module/rvfs" }
+fat-vfs = { git = "https://github.com/os-module/rvfs" }
+lwext-vfs = { git = "https://github.com/os-module/rvfs" }
+vfscore = { git = "https://github.com/os-module/rvfs" }
 ```
 ```rust
 // create a fs_type
