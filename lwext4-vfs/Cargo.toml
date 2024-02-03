@@ -1,0 +1,21 @@
+[package]
+name = "lwext4-vfs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bitflags = "1.3.2"
+lwext4-rs = { path = "../../lwext4/lwext4-rs", default-features = false }
+lock_api = { version = "0",default-features = false }
+vfscore = { path = "../vfscore" }
+unifs = { path = "../unifs" }
+log = "0.4"
+embedded-io = "0.6"
+
+
+[dev-dependencies]
+spin = "0"
+env_logger = "0.9"
+lwext4-rs = { path = "../../lwext4/lwext4-rs" }

@@ -1,3 +1,5 @@
+#![feature(seek_stream_len)]
+
 use crate::devfs::{init_devfs, DevFsKernelProviderImpl};
 use ::devfs::DevFs;
 use ::ramfs::RamFs;
@@ -8,10 +10,12 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::ops::Index;
 use std::sync::Arc;
+use lwext4_vfs::{ExtFs, ExtFsType};
 use vfscore::error::VfsError;
 use vfscore::fstype::VfsFsType;
 use vfscore::path::{print_fs_tree, VfsPath};
 use vfscore::utils::{VfsInodeMode, VfsNodeType};
+use crate::extfs::{ExtFsProviderImpl, init_extfs};
 
 use crate::procfs::{init_procfs, DynFsKernelProviderImpl, ProcFsDirInodeImpl, ProcessInfo};
 use crate::ramfs::{init_ramfs, RamFsProviderImpl};
@@ -19,6 +23,7 @@ use crate::ramfs::{init_ramfs, RamFsProviderImpl};
 mod devfs;
 mod procfs;
 mod ramfs;
+mod extfs;
 
 static FS: Lazy<Mutex<HashMap<String, Arc<dyn VfsFsType>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
@@ -29,19 +34,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     let ramfs_root = init_ramfs(FS.lock().index("ramfs").clone())?;
     let procfs_root = init_procfs(FS.lock().index("procfs").clone())?;
     let devfs_root = init_devfs(FS.lock().index("devfs").clone())?;
-
-    let _proc_inode =
-        ramfs_root
-            .inode()?
-            .create("proc", VfsNodeType::Dir, "rwxr-xr-x".into(), None)?;
-    let _dev_inode =
-        ramfs_root
-            .inode()?
-            .create("dev", VfsNodeType::Dir, "rwxr-xr-x".into(), None)?;
+    let extfs_root = init_extfs(FS.lock().index("extfs").clone())?;
+    ramfs_root
+        .inode()?
+        .create("proc", VfsNodeType::Dir, "rwxr-xr-x".into(), None)?;
+    ramfs_root
+        .inode()?
+        .create("dev", VfsNodeType::Dir, "rwxr-xr-x".into(), None)?;
+    ramfs_root.inode()?
+        .create("ext", VfsNodeType::Dir, "rwxr-xr-x".into(), None)?;
     let path = VfsPath::new(ramfs_root.clone());
     path.join("proc")?.mount(procfs_root, 0)?;
     path.join("dev")?.mount(devfs_root, 0)?;
-
+    path.join("ext")?.mount(extfs_root, 0)?;
     let test1_path = path.join("d1/test1.txt")?;
 
     let dt1 = test1_path.open(Some(
@@ -94,10 +99,12 @@ fn register_all_fs() {
     let sysfs = Arc::new(DynFs::<_, Mutex<()>>::new(DynFsKernelProviderImpl, "sysfs"));
     let ramfs = Arc::new(RamFs::<_, Mutex<()>>::new(RamFsProviderImpl));
     let devfs = Arc::new(DevFs::<_, Mutex<()>>::new(DevFsKernelProviderImpl));
+    let extfs = Arc::new(ExtFs::<_,Mutex<()>>::new(ExtFsType::Ext3,ExtFsProviderImpl));
 
     FS.lock().insert("procfs".to_string(), procfs);
     FS.lock().insert("sysfs".to_string(), sysfs);
     FS.lock().insert("ramfs".to_string(), ramfs);
     FS.lock().insert("devfs".to_string(), devfs);
+    FS.lock().insert("extfs".to_string(), extfs);
     info!("register all fs");
 }

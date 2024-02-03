@@ -6,7 +6,8 @@ members = [
     "devfs",
     "dynfs",
     "demo",
-    "fat-vfs"
+    "fat-vfs",
+    "lwext4-vfs"
 ]
 resolver = "2"
 

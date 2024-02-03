@@ -6,10 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-devfs = {path = "../devfs"}
-ramfs = {path = "../ramfs"}
-dynfs = {path = "../dynfs"}
-vfscore = {path = "../vfscore"}
+devfs = { path = "../devfs" }
+ramfs = { path = "../ramfs" }
+dynfs = { path = "../dynfs" }
+vfscore = { path = "../vfscore" }
+lwext4-vfs = { path = "../lwext4-vfs" }
+lwext4-rs = { path = "../../lwext4/lwext4-rs" }
 log = "0.4.14"
 spin = "0"
 env_logger = "0.9"
