@@ -8,7 +8,7 @@ use vfscore::file::VfsFile;
 use vfscore::fstype::VfsFsType;
 use vfscore::inode::VfsInode;
 
-use vfscore::utils::{VfsNodePerm, VfsNodeType, VfsTimeSpec};
+use vfscore::utils::{VfsFileStat, VfsNodePerm, VfsNodeType, VfsTimeSpec};
 use vfscore::VfsResult;
 
 #[derive(Clone)]
@@ -41,6 +41,14 @@ impl VfsFile for NullDev {
 impl VfsInode for NullDev {
     fn node_perm(&self) -> VfsNodePerm {
         VfsNodePerm::empty()
+    }
+    fn get_attr(&self) -> VfsResult<VfsFileStat> {
+        Ok(VfsFileStat{
+            st_blksize: 512,
+            st_rdev: 0,
+            st_size: 0,
+            ..Default::default()
+        })
     }
     fn inode_type(&self) -> VfsNodeType {
         todo!()

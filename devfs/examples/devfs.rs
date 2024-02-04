@@ -3,7 +3,6 @@ use log::error;
 use spin::Mutex;
 use std::error::Error;
 use std::sync::Arc;
-use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
 use vfscore::fstype::VfsFsType;
 use vfscore::inode::{InodeAttr, VfsInode};
@@ -102,7 +101,12 @@ impl VfsInode for NullDev {
     }
 
     fn get_attr(&self) -> VfsResult<VfsFileStat> {
-        Err(VfsError::NoSys)
+        Ok(VfsFileStat{
+            st_blksize: 512,
+            st_rdev: 0,
+            st_size: 0,
+            ..Default::default()
+        })
     }
     fn inode_type(&self) -> VfsNodeType {
         todo!()

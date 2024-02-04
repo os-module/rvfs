@@ -87,9 +87,10 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> VfsInode for DevF
     }
 
     fn get_attr(&self) -> VfsResult<VfsFileStat> {
+        // todo!(use real dev)
         let mut attr = basic_file_stat(&self.basic);
-        attr.st_size = 0;
-        attr.st_rdev = self.rdev;
+        attr.st_size = self.real_dev()?.get_attr()?.st_size;
+        attr.st_blksize = self.real_dev()?.get_attr()?.st_blksize;
         attr.st_mode = VfsInodeMode::from(
             VfsNodePerm::from_bits_truncate(attr.st_mode as u16),
             self.ty,
