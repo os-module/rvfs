@@ -13,9 +13,12 @@ use vfscore::inode::{InodeAttr, VfsInode};
 use vfscore::superblock::VfsSuperBlock;
 use vfscore::utils::{VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec};
 use vfscore::{impl_file_inode_default, VfsResult};
+use crate::inode::ExtFsInodeAttr;
+
 pub struct ExtFileInode<R: VfsRawMutex> {
     file: Mutex<R, File>,
     sb: Weak<ExtFsSuperBlock<R>>,
+    times: Mutex<R,ExtFsInodeAttr>,
 }
 
 unsafe impl<R: VfsRawMutex> Send for ExtFileInode<R> {}
@@ -26,6 +29,7 @@ impl<R: VfsRawMutex> ExtFileInode<R> {
         Self {
             file: Mutex::new(file),
             sb: Arc::downgrade(sb),
+            times: Mutex::new(ExtFsInodeAttr::default()),
         }
     }
     pub(super) fn path(&self) -> String {
@@ -83,6 +87,7 @@ impl<R: VfsRawMutex + 'static> VfsInode for ExtFileInode<R> {
             .map_err(|_x| VfsError::Invalid)?;
         let fs_stat = sb.fs.mount_handle().stats().map_err(into_vfs)?;
         let st_blksize = fs_stat.block_size;
+        let times = self.times.lock();
         Ok(VfsFileStat {
             st_dev: 0,
             st_ino: meta.ino(),
@@ -96,9 +101,12 @@ impl<R: VfsRawMutex + 'static> VfsInode for ExtFileInode<R> {
             st_blksize,
             __pad2: 0,
             st_blocks: meta.blocks(),
-            st_atime: VfsTimeSpec::new(meta.atime() as u64, 0),
-            st_mtime: VfsTimeSpec::new(meta.mtime() as u64, 0),
-            st_ctime: VfsTimeSpec::new(meta.ctime() as u64, 0),
+            // st_atime: VfsTimeSpec::new(meta.atime() as u64, 0),
+            // st_mtime: VfsTimeSpec::new(meta.mtime() as u64, 0),
+            // st_ctime: VfsTimeSpec::new(meta.ctime() as u64, 0),
+            st_atime: times.atime,
+            st_mtime: times.mtime,
+            st_ctime: times.ctime,
             unused: 0,
         })
     }
@@ -113,17 +121,21 @@ impl<R: VfsRawMutex + 'static> VfsInode for ExtFileInode<R> {
     }
     fn update_time(&self, time: VfsTime, now: VfsTimeSpec) -> VfsResult<()> {
         let mut file = self.file.lock();
-        let mut times = FileTimes::new();
+        let times = FileTimes::new();
+        let mut attr_times = self.times.lock();
         match time {
             VfsTime::AccessTime(t) => {
-                times = times.set_accessed(Time::from_extra(t.sec as u32, Some(t.nsec as u32)));
+                attr_times.atime = t;
+                times.set_accessed(Time::from_extra(t.sec as u32, Some(t.nsec as u32)));
             }
             VfsTime::ModifiedTime(t) => {
-                times = times.set_modified(Time::from_extra(t.sec as u32, Some(t.nsec as u32)));
+                attr_times.mtime = t;
+                times.set_modified(Time::from_extra(t.sec as u32, Some(t.nsec as u32)));
             }
         }
-        times = times.set_modified(Time::from_extra(now.sec as u32, Some(now.nsec as u32)));
+        // times.set_modified(Time::from_extra(now.sec as u32, Some(now.nsec as u32)));
         info!("[update_time] path: {:?}, times: {:?}", file.path(), times);
+        attr_times.ctime = now;
         file.set_times(times).map_err(into_vfs)
     }
 }
