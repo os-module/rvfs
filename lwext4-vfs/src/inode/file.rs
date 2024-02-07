@@ -1,3 +1,4 @@
+use alloc::vec;
 use crate::types::into_vfs;
 use crate::{ExtFsSuperBlock, VfsRawMutex};
 use alloc::string::String;
@@ -47,6 +48,13 @@ impl<R: VfsRawMutex + 'static> VfsFile for ExtFileInode<R> {
     }
     fn write_at(&self, offset: u64, buf: &[u8]) -> VfsResult<usize> {
         let mut file = self.file.lock();
+        let file_size = file.metadata().map_err(into_vfs)?.size();
+        if file_size < offset {
+            let empty = vec![0; (offset - file_size) as usize];
+            file.seek(SeekFrom::Start(file_size))
+                .map_err(into_vfs)?;
+            file.write_all(&empty).map_err(into_vfs)?;
+        }
         if file.stream_position().map_err(into_vfs)? != offset {
             file.seek(SeekFrom::Start(offset)).map_err(into_vfs)?;
         }

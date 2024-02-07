@@ -82,6 +82,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         .inode()?
         .create("f3", VfsNodeType::File, "rwxrwxrwx".into(), None)?;
 
+    let f4 = root
+        .inode()?
+        .create("f4", VfsNodeType::File, "rwxrwxrwx".into(), None)?;
     let mut offset = 0;
     let mut buf = [0u8; 1024];
     let mut data = 1;
@@ -147,6 +150,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     // |--f3
     print_fs_tree(&mut FakeWriter, root.clone(), "".to_string(), true)?;
     let sb = root.inode()?.get_super_block()?;
+
+    let buf = [0u8; 1024];
+    let w = f4.write_at(10, &buf)?;
+    assert_eq!(w, 1024);
+    let attr = f4.get_attr()?;
+    assert_eq!(attr.st_size, 1034);
+
+    let mut buf = vec![0u8; 1034];
+    let r = f4.read_at(0, &mut buf)?;
+    assert_eq!(r, 1034);
+
     fatfs.kill_sb(sb)?; //like unmount up
 
     {

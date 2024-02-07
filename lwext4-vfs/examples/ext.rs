@@ -69,6 +69,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     f3.inode()?.update_time(VfsTime::AccessTime(VfsTimeSpec::new(1,1)),VfsTimeSpec::new(1,1))?;
     let attr = f3.inode()?.get_attr()?;
     println!("{:#x?}", attr);
+
+    let f6 = dir1.inode()?.create("f6",VfsNodeType::File,VfsNodePerm::from_bits_truncate(0o777),None)?;
+    let buf = [0u8; 1024];
+    let w = f6.write_at(10, &buf)?;
+    assert_eq!(w, 1024);
+    let attr = f6.get_attr()?;
+    assert_eq!(attr.st_size, 1034);
+
+    let mut buf = vec![0u8; 1034];
+    let r = f6.read_at(0, &mut buf)?;
+    assert_eq!(r, 1034);
+
     // delete file
     std::fs::remove_file("./ext_image")?;
     Ok(())

@@ -3,9 +3,11 @@ use crate::inode::FatFsInodeSame;
 use crate::*;
 use alloc::string::String;
 use alloc::sync::Weak;
+use alloc::vec;
 use alloc::vec::Vec;
 
 use fatfs::{Read, Seek, Write};
+use log::warn;
 
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
@@ -82,6 +84,12 @@ impl<R: VfsRawMutex + 'static> VfsFile for FatFsFileInode<R> {
             return Ok(0);
         }
         let mut file = self.file.lock();
+        if offset > *self.size.lock(){
+            let empty = vec![0; (offset - *self.size.lock()) as usize];
+            file.seek(fatfs::SeekFrom::Start(*self.size.lock()))
+                .map_err(|_| VfsError::IoError)?;
+            file.write_all(&empty).map_err(|_| VfsError::NoSpace)?;
+        }
         let fat_offset = file.offset();
         if offset != fat_offset as u64 {
             file.seek(fatfs::SeekFrom::Start(offset))
