@@ -25,7 +25,7 @@ fn make_ramfs() -> VfsResult<Arc<dyn VfsDentry>> {
 #[test]
 fn test_vfs_path() {
     let root = make_ramfs().unwrap();
-    let path = VfsPath::new(root.clone());
+    let path = VfsPath::new(root.clone(),root.clone());
     let rt = path.open(None);
     assert!(rt.is_ok());
     assert!(Arc::ptr_eq(&rt.unwrap(), &root));
@@ -63,7 +63,7 @@ fn test_dentry_path() {
     let new_d1_dt = new_root.i_insert("d1", new_d1.clone()).unwrap();
     let new_dd1_dt = new_d1_dt.i_insert("dd1", new_dd1.clone()).unwrap();
 
-    let path = VfsPath::new(dd1_dt.clone());
+    let path = VfsPath::new(root.clone(),dd1_dt.clone());
     // now new ramfs has been mounted to dd1_dt
     path.mount(new_root.clone(), 0).unwrap();
 
@@ -75,7 +75,7 @@ fn test_dentry_path() {
     assert!(Arc::ptr_eq(&new_dd1_dt__, &new_dd1_dt));
     assert_eq!(new_dd1_dt__.name(), "dd1");
 
-    let path = VfsPath::new(root);
+    let path = VfsPath::new(root.clone(),root);
     let new_dd1_dt___ = path.join("./d1/dd1/d1/dd1").unwrap().open(None).unwrap();
     assert!(Arc::ptr_eq(&new_dd1_dt___, &new_dd1_dt));
 

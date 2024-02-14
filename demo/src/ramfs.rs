@@ -23,6 +23,7 @@ pub fn init_ramfs(ramfs: Arc<dyn VfsFsType>) -> Result<Arc<dyn VfsDentry>, Box<d
         VfsNodePerm::from_bits_truncate(0o666),
         None,
     )?;
+    f1.write_at(0, b"hello world")?;
     let _f2 = root_inode.create(
         "f2.txt",
         VfsNodeType::File,

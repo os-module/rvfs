@@ -7,7 +7,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use fatfs::{Read, Seek, Write};
-use log::warn;
+
 
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;

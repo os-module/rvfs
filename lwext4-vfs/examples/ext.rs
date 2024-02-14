@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .unwrap();
     info!("ramfs tree:");
     // print_fs_tree(&mut OutPut, root.clone(), "".to_string(), true).unwrap();
-    let path = VfsPath::new(root.clone());
+    let path = VfsPath::new(root.clone(),root.clone());
     let dir1_path = path.join("dir").unwrap();
     let dir1 = dir1_path.open(None)?;
     dir1.inode()?.children().for_each(|e| {

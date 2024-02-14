@@ -12,7 +12,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::error::Error;
 use core::fmt::{write, Debug, Formatter, Write};
-use log::error;
+use log::{error, trace};
 
 /// The context of system call
 ///
@@ -27,7 +27,11 @@ pub struct SysContext {
 
 #[derive(Clone)]
 pub struct VfsPath {
+    /// The root of the file system
+    root: Arc<dyn VfsDentry>,
+    /// The directory to start searching from
     fs: Arc<dyn VfsDentry>,
+    /// The path to search for
     path: String,
 }
 
@@ -46,9 +50,10 @@ impl Debug for VfsPath {
 }
 
 impl VfsPath {
-    pub fn new(root_dentry: Arc<dyn VfsDentry>) -> Self {
+    pub fn new(root:Arc<dyn VfsDentry>,start: Arc<dyn VfsDentry>) -> Self {
         Self {
-            fs: root_dentry,
+            root,
+            fs: start,
             path: "".to_string(),
         }
     }
@@ -58,12 +63,14 @@ impl VfsPath {
     /// Appends a path segment to this path, returning the result
     pub fn join(&self, path: impl AsRef<str>) -> VfsResult<Self> {
         Ok(VfsPath {
+            root: self.root.clone(),
             path: self.path.clone() + "/" + path.as_ref(),
             fs: self.fs.clone(),
         })
     }
     pub fn root(&self) -> Self {
         VfsPath {
+            root: self.root.clone(),
             path: "".to_string(),
             fs: self.fs.clone(),
         }
@@ -72,6 +79,28 @@ impl VfsPath {
         self.path.is_empty()
     }
 
+    fn to_symlink(&self, symlink:Arc<dyn VfsDentry>)->VfsResult<Arc<dyn VfsDentry>>{
+        let inode = symlink.inode()?;
+        let mut buf = [0;255];
+        let r = inode.readlink(&mut buf)?;
+        if r > 255{
+            return Err(VfsError::Invalid)
+        }
+        let path = core::str::from_utf8(&buf[..r])
+            .map_err(|_|VfsError::Invalid)?;
+        if path.starts_with("/"){
+            trace!("[to_symlink] absolute path: {}", path);
+            // absolute path
+            let new_path = Self::new(self.root.clone(),self.root.clone()).join(path)?;
+            new_path.open(None)
+        }else {
+            trace!("[to_symlink] relative path: {}", path);
+            // relative path
+            let p = symlink.parent().unwrap();
+            let new_path = Self::new(self.root.clone(),p).join(path)?;
+            new_path.open(None)
+        }
+    }
     // todo!(more flag support and permission check)
     /// open a dentry
     ///
@@ -87,7 +116,15 @@ impl VfsPath {
     pub fn open(&self, mode: Option<VfsInodeMode>) -> VfsResult<Arc<dyn VfsDentry>> {
         let exist = self.exists();
         match exist {
-            Ok(d) => Ok(d),
+            Ok(d) => {
+                let inode = d.inode()?;
+                match inode.inode_type() {
+                    VfsNodeType::SymLink => {
+                        self.to_symlink(d)
+                    }
+                    _ => Ok(d)
+                }
+            },
             Err(e) => match e {
                 VfsError::NoEntry if mode.is_some() => {
                     let mut ty = mode.unwrap() & VfsInodeMode::TYPE_MASK;
@@ -168,6 +205,7 @@ impl VfsPath {
         let index = self.path.rfind('/');
         index
             .map(|idx| VfsPath {
+                root: self.root.clone(),
                 path: self.path[..idx].to_string(),
                 fs: self.fs.clone(),
             })
@@ -784,7 +822,7 @@ mod tests {
 
     #[test]
     fn test_join() {
-        let path = VfsPath::new(Arc::new(FakeDentry));
+        let path = VfsPath::new(Arc::new(FakeDentry),Arc::new(FakeDentry));
 
         assert_eq!(path.join("foo.txt").unwrap().as_str(), "/foo.txt");
         assert_eq!(path.join("foo/bar.txt").unwrap().as_str(), "/foo/bar.txt");
@@ -802,7 +840,7 @@ mod tests {
 
     #[test]
     fn test_path_filename() {
-        let path = VfsPath::new(Arc::new(FakeDentry));
+        let path = VfsPath::new(Arc::new(FakeDentry),Arc::new(FakeDentry));
         assert_eq!(path.join("foo.txt").unwrap().filename(), "foo.txt");
         assert_eq!(path.join("foo/bar.txt").unwrap().filename(), "bar.txt");
         assert_eq!(path.join("/foo").unwrap().filename(), "foo");
