@@ -114,6 +114,14 @@ fn open_symlink_test(root: Arc<dyn VfsDentry>)->Result<(), Box<dyn Error>>{
     let f11 = f11.inode()?;
     let r = f11.read_at(0, &mut buf)?;
     println!("read symlink /d1/f1_link1: {:?}", std::str::from_utf8(&buf[..r])?);
+
+
+    let f11 = path.join("/d1/f1_link1")?
+        .open2(None,pconst::io::OpenFlags::O_NOFOLLOW)?;
+    let f11 = f11.inode()?;
+    f11.read_at(0, &mut buf).expect_err("read symlink /d1/f1_link1: expect error");
+    let r= f11.readlink(&mut buf)?;
+    println!("read symlink content /d1/f1_link1: {:?}", std::str::from_utf8(&buf[..r])?);
     Ok(())
 }
 

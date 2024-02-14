@@ -101,10 +101,19 @@ impl VfsPath {
             new_path.open(None)
         }
     }
-    // todo!(more flag support and permission check)
-    /// open a dentry
+    /// It same as [`open`], but it will follow the symlink according to the flag
     ///
-    /// if you need create the file if it doesn't exist, the parameter `mode` should be `Some(mode)`
+    /// This function is just to avoid modifications to the code that uses the open function.
+    #[cfg(feature = "linux_error")]
+    pub fn open2(&self, mode: Option<VfsInodeMode>, flag:pconst::io::OpenFlags)->VfsResult<Arc<dyn VfsDentry>>{
+        self.__open(mode, !flag.contains(pconst::io::OpenFlags::O_NOFOLLOW))
+    }
+    // todo!(more flag support and permission check)
+    /// Open or create a dentry
+    ///
+    /// If you need create the file if it doesn't exist, the parameter `mode` should be `Some(mode)`.
+    ///
+    /// It will follow the symlink by default, if you don't want to follow the symlink, you can use [`open2`]
     ///
     /// # Example
     /// ```compile_fail
@@ -114,15 +123,23 @@ impl VfsPath {
     /// ```
     ///
     pub fn open(&self, mode: Option<VfsInodeMode>) -> VfsResult<Arc<dyn VfsDentry>> {
+        self.__open(mode, true)
+    }
+
+    fn __open(&self,mode: Option<VfsInodeMode>, symlink:bool) -> VfsResult<Arc<dyn VfsDentry>> {
         let exist = self.exists();
         match exist {
             Ok(d) => {
-                let inode = d.inode()?;
-                match inode.inode_type() {
-                    VfsNodeType::SymLink => {
-                        self.to_symlink(d)
+                if symlink{
+                    let inode = d.inode()?;
+                    match inode.inode_type() {
+                        VfsNodeType::SymLink => {
+                            self.to_symlink(d)
+                        }
+                        _ => Ok(d)
                     }
-                    _ => Ok(d)
+                }else {
+                    Ok(d)
                 }
             },
             Err(e) => match e {

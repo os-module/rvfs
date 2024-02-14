@@ -3,10 +3,9 @@ use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
 use core::cmp::max;
 use lock_api::Mutex;
-
+use log::trace;
 use crate::types::into_vfs;
 use crate::{ExtFsSuperBlock, VfsRawMutex};
-use log::info;
 use lwext4_rs::{FileTimes, MetaDataExt, Time};
 use vfscore::error::VfsError;
 use vfscore::file::VfsFile;
@@ -70,7 +69,7 @@ impl<R: VfsRawMutex + 'static> VfsInode for ExtLinkInode<R> {
             .get_super_block()?
             .downcast_arc::<ExtFsSuperBlock<R>>()
             .map_err(|_x| VfsError::Invalid)?;
-        info!("[readlink] path: {:?}", self.path);
+        trace!("[readlink] path: {:?}", self.path);
         let link = sb.fs.read_link(self.path.as_str()).map_err(into_vfs)?;
         let len = max(link.len(), buf.len());
         buf[..len].copy_from_slice(&link.as_bytes()[..len]);
@@ -134,7 +133,7 @@ impl<R: VfsRawMutex + 'static> VfsInode for ExtLinkInode<R> {
             }
         }
         // times.set_modified(Time::from_extra(now.sec as u32, Some(now.nsec as u32)));
-        info!("[update_time] path: {:?}, times: {:?}", self.path, times);
+        trace!("[update_time] path: {:?}, times: {:?}", self.path, times);
         attr_times.ctime = now;
         sb.fs.set_times(&self.path, times).map_err(into_vfs)
     }

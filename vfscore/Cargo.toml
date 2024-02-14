@@ -13,8 +13,8 @@ downcast-rs = { version = "1.2.0", default-features = false }
 pconst = { git = "https://github.com/os-module/pconst.git",features = ["trick"],optional = true }
 
 [features]
-linux_error = ["pconst"]
+linux_error = ["dep:pconst"]
 
 [dev-dependencies]
-ramfs = {path = "../ramfs"}
+ramfs = { path = "../ramfs" }
 spin = "0"
