@@ -1,9 +1,8 @@
-use crate::fstype::VfsFsType;
-use crate::inode::VfsInode;
-use crate::utils::VfsFsStat;
-use crate::VfsResult;
 use alloc::sync::Arc;
+
 use downcast_rs::{impl_downcast, DowncastSync};
+
+use crate::{fstype::VfsFsType, inode::VfsInode, utils::VfsFsStat, VfsResult};
 
 /// Type of superblock keying.
 pub enum SuperType {

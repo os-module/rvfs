@@ -1,19 +1,20 @@
-use super::*;
-use crate::device::FatDevice;
-use crate::inode::FatFsDirInode;
-use alloc::collections::BTreeMap;
-use alloc::string::String;
-use alloc::sync::Weak;
+use alloc::{collections::BTreeMap, string::String, sync::Weak};
+
 use fatfs::FileSystem;
 use log::info;
 use unifs::dentry::UniFsDentry;
-use vfscore::dentry::VfsDentry;
-use vfscore::error::VfsError;
-use vfscore::fstype::{FileSystemFlags, VfsFsType};
-use vfscore::inode::VfsInode;
-use vfscore::superblock::{SuperType, VfsSuperBlock};
-use vfscore::utils::{VfsFsStat, VfsNodeType};
-use vfscore::VfsResult;
+use vfscore::{
+    dentry::VfsDentry,
+    error::VfsError,
+    fstype::{FileSystemFlags, VfsFsType},
+    inode::VfsInode,
+    superblock::{SuperType, VfsSuperBlock},
+    utils::{VfsFsStat, VfsNodeType},
+    VfsResult,
+};
+
+use super::*;
+use crate::{device::FatDevice, inode::FatFsDirInode};
 
 pub struct FatFs<T: Send + Sync, R: VfsRawMutex> {
     #[allow(unused)]

@@ -1,13 +1,13 @@
 mod dir;
 mod file;
 
-use crate::fs::FatFsSuperBlock;
-use crate::*;
 use alloc::sync::Weak;
-use vfscore::utils::VfsNodePerm;
 
 pub use dir::*;
 pub use file::*;
+use vfscore::utils::VfsNodePerm;
+
+use crate::{fs::FatFsSuperBlock, *};
 
 struct FatFsInodeSame<R: VfsRawMutex> {
     pub sb: Weak<FatFsSuperBlock<R>>,

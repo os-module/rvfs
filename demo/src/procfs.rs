@@ -1,17 +1,12 @@
+use std::{cmp::min, error::Error, sync::Arc};
+
 use dynfs::{DynFsDirInode, DynFsKernelProvider};
 use log::info;
 use spin::Mutex;
-use std::cmp::min;
-use std::error::Error;
-use std::sync::Arc;
-use vfscore::dentry::VfsDentry;
-use vfscore::error::VfsError;
-use vfscore::file::VfsFile;
-use vfscore::fstype::VfsFsType;
-use vfscore::inode::VfsInode;
-
-use vfscore::utils::*;
-use vfscore::VfsResult;
+use vfscore::{
+    dentry::VfsDentry, error::VfsError, file::VfsFile, fstype::VfsFsType, inode::VfsInode,
+    utils::*, VfsResult,
+};
 pub struct ProcessInfo {
     pid: u64,
 }

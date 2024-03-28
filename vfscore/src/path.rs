@@ -1,18 +1,26 @@
 //! Utilities for path manipulation.
 //!
-use crate::dentry::VfsDentry;
-use crate::error::VfsError;
-use crate::inode::VfsInode;
-use crate::utils::{VfsDirEntry, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsRenameFlag};
-use crate::VfsResult;
-use alloc::boxed::Box;
-use alloc::format;
-use alloc::string::{String, ToString};
-use alloc::sync::Arc;
-use alloc::vec::Vec;
-use core::error::Error;
-use core::fmt::{write, Debug, Formatter, Write};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    sync::Arc,
+    vec::Vec,
+};
+use core::{
+    error::Error,
+    fmt::{write, Debug, Formatter, Write},
+};
+
 use log::{error, trace};
+
+use crate::{
+    dentry::VfsDentry,
+    error::VfsError,
+    inode::VfsInode,
+    utils::{VfsDirEntry, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsRenameFlag},
+    VfsResult,
+};
 
 /// The context of system call
 ///
@@ -50,7 +58,7 @@ impl Debug for VfsPath {
 }
 
 impl VfsPath {
-    pub fn new(root:Arc<dyn VfsDentry>,start: Arc<dyn VfsDentry>) -> Self {
+    pub fn new(root: Arc<dyn VfsDentry>, start: Arc<dyn VfsDentry>) -> Self {
         Self {
             root,
             fs: start,
@@ -79,25 +87,24 @@ impl VfsPath {
         self.path.is_empty()
     }
 
-    fn to_symlink(&self, symlink:Arc<dyn VfsDentry>)->VfsResult<Arc<dyn VfsDentry>>{
+    fn to_symlink(&self, symlink: Arc<dyn VfsDentry>) -> VfsResult<Arc<dyn VfsDentry>> {
         let inode = symlink.inode()?;
-        let mut buf = [0;255];
+        let mut buf = [0; 255];
         let r = inode.readlink(&mut buf)?;
-        if r > 255{
-            return Err(VfsError::Invalid)
+        if r > 255 {
+            return Err(VfsError::Invalid);
         }
-        let path = core::str::from_utf8(&buf[..r])
-            .map_err(|_|VfsError::Invalid)?;
-        if path.starts_with("/"){
+        let path = core::str::from_utf8(&buf[..r]).map_err(|_| VfsError::Invalid)?;
+        if path.starts_with("/") {
             trace!("[to_symlink] absolute path: {}", path);
             // absolute path
-            let new_path = Self::new(self.root.clone(),self.root.clone()).join(path)?;
+            let new_path = Self::new(self.root.clone(), self.root.clone()).join(path)?;
             new_path.open(None)
-        }else {
+        } else {
             trace!("[to_symlink] relative path: {}", path);
             // relative path
             let p = symlink.parent().unwrap();
-            let new_path = Self::new(self.root.clone(),p).join(path)?;
+            let new_path = Self::new(self.root.clone(), p).join(path)?;
             new_path.open(None)
         }
     }
@@ -105,7 +112,11 @@ impl VfsPath {
     ///
     /// This function is just to avoid modifications to the code that uses the open function.
     #[cfg(feature = "linux_error")]
-    pub fn open2(&self, mode: Option<VfsInodeMode>, flag:pconst::io::OpenFlags)->VfsResult<Arc<dyn VfsDentry>>{
+    pub fn open2(
+        &self,
+        mode: Option<VfsInodeMode>,
+        flag: pconst::io::OpenFlags,
+    ) -> VfsResult<Arc<dyn VfsDentry>> {
         self.__open(mode, !flag.contains(pconst::io::OpenFlags::O_NOFOLLOW))
     }
     // todo!(more flag support and permission check)
@@ -126,22 +137,20 @@ impl VfsPath {
         self.__open(mode, true)
     }
 
-    fn __open(&self,mode: Option<VfsInodeMode>, symlink:bool) -> VfsResult<Arc<dyn VfsDentry>> {
+    fn __open(&self, mode: Option<VfsInodeMode>, symlink: bool) -> VfsResult<Arc<dyn VfsDentry>> {
         let exist = self.exists();
         match exist {
             Ok(d) => {
-                if symlink{
+                if symlink {
                     let inode = d.inode()?;
                     match inode.inode_type() {
-                        VfsNodeType::SymLink => {
-                            self.to_symlink(d)
-                        }
-                        _ => Ok(d)
+                        VfsNodeType::SymLink => self.to_symlink(d),
+                        _ => Ok(d),
                     }
-                }else {
+                } else {
                     Ok(d)
                 }
-            },
+            }
             Err(e) => match e {
                 VfsError::NoEntry if mode.is_some() => {
                     let mut ty = mode.unwrap() & VfsInodeMode::TYPE_MASK;
@@ -769,13 +778,15 @@ impl DirIter for Arc<dyn VfsInode> {
 
 #[cfg(test)]
 mod tests {
-    use crate::dentry::VfsDentry;
-    use crate::fstype::VfsMountPoint;
-    use crate::inode::VfsInode;
-    use crate::path::{split_path, VfsPath};
-    use crate::VfsResult;
-    use alloc::string::String;
-    use alloc::sync::Arc;
+    use alloc::{string::String, sync::Arc};
+
+    use crate::{
+        dentry::VfsDentry,
+        fstype::VfsMountPoint,
+        inode::VfsInode,
+        path::{split_path, VfsPath},
+        VfsResult,
+    };
 
     struct FakeDentry;
     impl VfsDentry for FakeDentry {
@@ -839,7 +850,7 @@ mod tests {
 
     #[test]
     fn test_join() {
-        let path = VfsPath::new(Arc::new(FakeDentry),Arc::new(FakeDentry));
+        let path = VfsPath::new(Arc::new(FakeDentry), Arc::new(FakeDentry));
 
         assert_eq!(path.join("foo.txt").unwrap().as_str(), "/foo.txt");
         assert_eq!(path.join("foo/bar.txt").unwrap().as_str(), "/foo/bar.txt");
@@ -857,7 +868,7 @@ mod tests {
 
     #[test]
     fn test_path_filename() {
-        let path = VfsPath::new(Arc::new(FakeDentry),Arc::new(FakeDentry));
+        let path = VfsPath::new(Arc::new(FakeDentry), Arc::new(FakeDentry));
         assert_eq!(path.join("foo.txt").unwrap().filename(), "foo.txt");
         assert_eq!(path.join("foo/bar.txt").unwrap().filename(), "bar.txt");
         assert_eq!(path.join("/foo").unwrap().filename(), "foo");

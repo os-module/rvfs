@@ -1,28 +1,34 @@
-use crate::inode::file::ExtFileInode;
-use crate::inode::link::ExtLinkInode;
-use crate::inode::special::ExtSpecialInode;
-use crate::types::{into_file_type, into_vfs, into_vfs_node_type, Parent, ToDir};
-use crate::{ExtFsSuperBlock, VfsRawMutex};
-use alloc::string::{String, ToString};
-use alloc::sync::{Arc, Weak};
-use alloc::vec::Vec;
+use alloc::{
+    string::{String, ToString},
+    sync::{Arc, Weak},
+    vec::Vec,
+};
+
 use lock_api::Mutex;
 use log::{debug, info, warn};
 use lwext4_rs::{FileTimes, MetaDataExt, Permissions, ReadDir, Time};
-use vfscore::error::VfsError;
-use vfscore::file::VfsFile;
-use vfscore::inode::{InodeAttr, VfsInode};
-use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{
-    VfsDirEntry, VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec,
+use vfscore::{
+    error::VfsError,
+    file::VfsFile,
+    impl_dir_inode_default,
+    inode::{InodeAttr, VfsInode},
+    superblock::VfsSuperBlock,
+    utils::{
+        VfsDirEntry, VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec,
+    },
+    VfsResult,
 };
-use vfscore::{impl_dir_inode_default, VfsResult};
-use crate::inode::ExtFsInodeAttr;
+
+use crate::{
+    inode::{file::ExtFileInode, link::ExtLinkInode, special::ExtSpecialInode, ExtFsInodeAttr},
+    types::{into_file_type, into_vfs, into_vfs_node_type, Parent, ToDir},
+    ExtFsSuperBlock, VfsRawMutex,
+};
 
 pub struct ExtDirInode<R: VfsRawMutex> {
     dir: Arc<Mutex<R, ReadDir>>,
     sb: Weak<ExtFsSuperBlock<R>>,
-    times:Mutex<R,ExtFsInodeAttr>,
+    times: Mutex<R, ExtFsInodeAttr>,
 }
 unsafe impl<R: VfsRawMutex> Send for ExtDirInode<R> {}
 unsafe impl<R: VfsRawMutex> Sync for ExtDirInode<R> {}
@@ -31,7 +37,7 @@ impl<R: VfsRawMutex> ExtDirInode<R> {
         Self {
             dir,
             sb: Arc::downgrade(sb),
-            times:Mutex::new(ExtFsInodeAttr::default()),
+            times: Mutex::new(ExtFsInodeAttr::default()),
         }
     }
     fn path(&self) -> String {
@@ -145,11 +151,11 @@ impl<R: VfsRawMutex + 'static> VfsInode for ExtDirInode<R> {
                     .map_err(|_x| VfsError::Invalid)?;
                 link.path()
             }
-            VfsNodeType::CharDevice | VfsNodeType::BlockDevice =>{
+            VfsNodeType::CharDevice | VfsNodeType::BlockDevice => {
                 let special = src
                     .downcast_arc::<ExtSpecialInode<R>>()
                     .map_err(|_x| VfsError::Invalid)?;
-               special.path()
+                special.path()
             }
             VfsNodeType::Socket | VfsNodeType::Fifo => {
                 return Err(VfsError::NoSys);

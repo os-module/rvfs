@@ -1,20 +1,15 @@
+use std::{
+    error::Error,
+    sync::{atomic::AtomicUsize, Arc, Weak},
+};
+
 use dynfs::{DynFs, DynFsDirInode, DynFsKernelProvider};
 use log::info;
-use spin::Mutex;
-use spin::Once;
-use std::error::Error;
-
-use std::sync::atomic::AtomicUsize;
-use std::sync::{Arc, Weak};
-use vfscore::dentry::VfsDentry;
-use vfscore::error::VfsError;
-use vfscore::file::VfsFile;
-use vfscore::fstype::VfsFsType;
-use vfscore::inode::VfsInode;
-use vfscore::path::DirIter;
-
-use vfscore::utils::*;
-use vfscore::VfsResult;
+use spin::{Mutex, Once};
+use vfscore::{
+    dentry::VfsDentry, error::VfsError, file::VfsFile, fstype::VfsFsType, inode::VfsInode,
+    path::DirIter, utils::*, VfsResult,
+};
 
 #[derive(Clone)]
 struct DynFsKernelProviderImpl;

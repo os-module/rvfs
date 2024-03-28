@@ -1,13 +1,15 @@
+use alloc::{
+    collections::BTreeMap,
+    string::{String, ToString},
+    sync::{Arc, Weak},
+};
+
+use vfscore::{
+    dentry::VfsDentry, error::VfsError, fstype::VfsMountPoint, inode::VfsInode, utils::VfsNodeType,
+    VfsResult,
+};
+
 use crate::VfsRawMutex;
-use alloc::collections::BTreeMap;
-use alloc::string::{String, ToString};
-use alloc::sync::{Arc, Weak};
-use vfscore::dentry::VfsDentry;
-use vfscore::error::VfsError;
-use vfscore::fstype::VfsMountPoint;
-use vfscore::inode::VfsInode;
-use vfscore::utils::VfsNodeType;
-use vfscore::VfsResult;
 
 pub struct UniFsDentry<R: VfsRawMutex> {
     inner: lock_api::Mutex<R, UniFsDentryInner<R>>,

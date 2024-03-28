@@ -1,13 +1,14 @@
-use crate::file::VfsFile;
-use crate::superblock::VfsSuperBlock;
-use crate::utils::{VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec};
-use crate::VfsResult;
-use alloc::string::String;
-use alloc::sync::Arc;
-use alloc::vec::Vec;
+use alloc::{string::String, sync::Arc, vec::Vec};
 
-use crate::error::VfsError;
 use downcast_rs::{impl_downcast, DowncastSync};
+
+use crate::{
+    error::VfsError,
+    file::VfsFile,
+    superblock::VfsSuperBlock,
+    utils::{VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec},
+    VfsResult,
+};
 
 pub struct InodeAttr {
     /// File mode.

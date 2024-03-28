@@ -1,20 +1,17 @@
-use crate::fs::FatFsSuperBlock;
-use crate::inode::FatFsInodeSame;
-use crate::*;
-use alloc::string::String;
-use alloc::sync::Weak;
-use alloc::vec;
-use alloc::vec::Vec;
+use alloc::{string::String, sync::Weak, vec, vec::Vec};
 
 use fatfs::{Read, Seek, Write};
+use vfscore::{
+    error::VfsError,
+    file::VfsFile,
+    impl_file_inode_default,
+    inode::{InodeAttr, VfsInode},
+    superblock::VfsSuperBlock,
+    utils::{VfsFileStat, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime},
+    VfsResult,
+};
 
-
-use vfscore::error::VfsError;
-use vfscore::file::VfsFile;
-use vfscore::inode::{InodeAttr, VfsInode};
-use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{VfsFileStat, VfsInodeMode, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime};
-use vfscore::{impl_file_inode_default, VfsResult};
+use crate::{fs::FatFsSuperBlock, inode::FatFsInodeSame, *};
 
 pub struct FatFsFileInode<R: VfsRawMutex> {
     #[allow(unused)]
@@ -84,7 +81,7 @@ impl<R: VfsRawMutex + 'static> VfsFile for FatFsFileInode<R> {
             return Ok(0);
         }
         let mut file = self.file.lock();
-        if offset > *self.size.lock(){
+        if offset > *self.size.lock() {
             let empty = vec![0; (offset - *self.size.lock()) as usize];
             file.seek(fatfs::SeekFrom::Start(*self.size.lock()))
                 .map_err(|_| VfsError::IoError)?;

@@ -1,11 +1,13 @@
+use std::{error::Error, sync::Arc};
+
 use log::{error, info};
 use ramfs::{RamFs, RamFsProvider};
 use spin::mutex::Mutex;
-use std::error::Error;
-use std::sync::Arc;
-use vfscore::fstype::VfsFsType;
-use vfscore::path::DirIter;
-use vfscore::utils::{VfsNodePerm, VfsNodeType, VfsTimeSpec};
+use vfscore::{
+    fstype::VfsFsType,
+    path::DirIter,
+    utils::{VfsNodePerm, VfsNodeType, VfsTimeSpec},
+};
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();

@@ -1,30 +1,32 @@
 #![feature(seek_stream_len)]
 
-use crate::devfs::{init_devfs, DevFsKernelProviderImpl};
+use std::{collections::HashMap, error::Error, ops::Index, sync::Arc};
+
 use ::devfs::DevFs;
 use ::ramfs::RamFs;
 use dynfs::DynFs;
 use log::info;
-use spin::{Lazy, Mutex};
-use std::collections::HashMap;
-use std::error::Error;
-use std::ops::Index;
-use std::sync::Arc;
 use lwext4_vfs::{ExtFs, ExtFsType};
-use vfscore::dentry::VfsDentry;
-use vfscore::error::VfsError;
-use vfscore::fstype::VfsFsType;
-use vfscore::path::{print_fs_tree, VfsPath};
-use vfscore::utils::{VfsInodeMode, VfsNodeType};
-use crate::extfs::{ExtFsProviderImpl, init_extfs};
+use spin::{Lazy, Mutex};
+use vfscore::{
+    dentry::VfsDentry,
+    error::VfsError,
+    fstype::VfsFsType,
+    path::{print_fs_tree, VfsPath},
+    utils::{VfsInodeMode, VfsNodeType},
+};
 
-use crate::procfs::{init_procfs, DynFsKernelProviderImpl, ProcFsDirInodeImpl, ProcessInfo};
-use crate::ramfs::{init_ramfs, RamFsProviderImpl};
+use crate::{
+    devfs::{init_devfs, DevFsKernelProviderImpl},
+    extfs::{init_extfs, ExtFsProviderImpl},
+    procfs::{init_procfs, DynFsKernelProviderImpl, ProcFsDirInodeImpl, ProcessInfo},
+    ramfs::{init_ramfs, RamFsProviderImpl},
+};
 
 mod devfs;
+mod extfs;
 mod procfs;
 mod ramfs;
-mod extfs;
 
 static FS: Lazy<Mutex<HashMap<String, Arc<dyn VfsFsType>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
@@ -42,9 +44,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     ramfs_root
         .inode()?
         .create("dev", VfsNodeType::Dir, "rwxr-xr-x".into(), None)?;
-    ramfs_root.inode()?
+    ramfs_root
+        .inode()?
         .create("ext", VfsNodeType::Dir, "rwxr-xr-x".into(), None)?;
-    let path = VfsPath::new(ramfs_root.clone(),ramfs_root.clone());
+    let path = VfsPath::new(ramfs_root.clone(), ramfs_root.clone());
     path.join("proc")?.mount(procfs_root, 0)?;
     path.join("dev")?.mount(devfs_root, 0)?;
     path.join("ext")?.mount(extfs_root, 0)?;
@@ -79,52 +82,59 @@ fn main() -> Result<(), Box<dyn Error>> {
         pid1.add_file_manually("pid", Arc::new(ProcessInfo::new(1)), "r--r--r--".into())?;
     pid1_dt.i_insert("pid", pid1pid)?;
 
-
     open_symlink_test(ramfs_root.clone())?;
-
 
     info!("ramfs tree:");
     print_fs_tree(&mut OutPut, ramfs_root.clone(), "".to_string(), true)?;
     Ok(())
 }
 
-fn open_symlink_test(root: Arc<dyn VfsDentry>)->Result<(), Box<dyn Error>>{
-    let path = VfsPath::new(root.clone(),root);
+fn open_symlink_test(root: Arc<dyn VfsDentry>) -> Result<(), Box<dyn Error>> {
+    let path = VfsPath::new(root.clone(), root);
     path.join("f1_link.txt")?.symlink("f1.txt")?;
     path.join("./d1/test1_link")?.symlink("test1.txt")?;
 
     path.join("/d1/f1_link")?.symlink("/f1.txt")?;
     path.join("/d1/f1_link1")?.symlink("../f1.txt")?;
 
-    let test1 = path.join("/d1/test1_link")?
-        .open(None)?;
+    let test1 = path.join("/d1/test1_link")?.open(None)?;
     let test1 = test1.inode()?;
     let mut buf = [0u8; 255];
     let r = test1.read_at(0, &mut buf)?;
-    println!("read symlink test1.txt: {:?}", std::str::from_utf8(&buf[..r])?);
+    println!(
+        "read symlink test1.txt: {:?}",
+        std::str::from_utf8(&buf[..r])?
+    );
 
-    let f1 = path.join("/d1/f1_link")?
-        .open(None)?;
+    let f1 = path.join("/d1/f1_link")?.open(None)?;
     let f1 = f1.inode()?;
     let r = f1.read_at(0, &mut buf)?;
-    println!("read symlink /d1/f1_link: {:?}", std::str::from_utf8(&buf[..r])?);
+    println!(
+        "read symlink /d1/f1_link: {:?}",
+        std::str::from_utf8(&buf[..r])?
+    );
 
-    let f11 = path.join("/d1/f1_link1")?
-        .open(None)?;
+    let f11 = path.join("/d1/f1_link1")?.open(None)?;
     let f11 = f11.inode()?;
     let r = f11.read_at(0, &mut buf)?;
-    println!("read symlink /d1/f1_link1: {:?}", std::str::from_utf8(&buf[..r])?);
+    println!(
+        "read symlink /d1/f1_link1: {:?}",
+        std::str::from_utf8(&buf[..r])?
+    );
 
-
-    let f11 = path.join("/d1/f1_link1")?
-        .open2(None,pconst::io::OpenFlags::O_NOFOLLOW)?;
+    let f11 = path
+        .join("/d1/f1_link1")?
+        .open2(None, pconst::io::OpenFlags::O_NOFOLLOW)?;
     let f11 = f11.inode()?;
-    f11.read_at(0, &mut buf).expect_err("read symlink /d1/f1_link1: expect error");
-    let r= f11.readlink(&mut buf)?;
-    println!("read symlink content /d1/f1_link1: {:?}", std::str::from_utf8(&buf[..r])?);
+    f11.read_at(0, &mut buf)
+        .expect_err("read symlink /d1/f1_link1: expect error");
+    let r = f11.readlink(&mut buf)?;
+    println!(
+        "read symlink content /d1/f1_link1: {:?}",
+        std::str::from_utf8(&buf[..r])?
+    );
     Ok(())
 }
-
 
 struct OutPut;
 impl core::fmt::Write for OutPut {
@@ -142,7 +152,10 @@ fn register_all_fs() {
     let sysfs = Arc::new(DynFs::<_, Mutex<()>>::new(DynFsKernelProviderImpl, "sysfs"));
     let ramfs = Arc::new(RamFs::<_, Mutex<()>>::new(RamFsProviderImpl));
     let devfs = Arc::new(DevFs::<_, Mutex<()>>::new(DevFsKernelProviderImpl));
-    let extfs = Arc::new(ExtFs::<_,Mutex<()>>::new(ExtFsType::Ext3,ExtFsProviderImpl));
+    let extfs = Arc::new(ExtFs::<_, Mutex<()>>::new(
+        ExtFsType::Ext3,
+        ExtFsProviderImpl,
+    ));
 
     FS.lock().insert("procfs".to_string(), procfs);
     FS.lock().insert("sysfs".to_string(), sysfs);

@@ -1,24 +1,29 @@
-use alloc::string::String;
-use alloc::sync::{Arc, Weak};
-use alloc::vec::Vec;
+use alloc::{
+    string::String,
+    sync::{Arc, Weak},
+    vec::Vec,
+};
 use core::cmp::max;
+
 use lock_api::Mutex;
 use log::trace;
-use crate::types::into_vfs;
-use crate::{ExtFsSuperBlock, VfsRawMutex};
 use lwext4_rs::{FileTimes, MetaDataExt, Time};
-use vfscore::error::VfsError;
-use vfscore::file::VfsFile;
-use vfscore::inode::{InodeAttr, VfsInode};
-use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec};
-use vfscore::{impl_common_inode_default, VfsResult};
-use crate::inode::ExtFsInodeAttr;
+use vfscore::{
+    error::VfsError,
+    file::VfsFile,
+    impl_common_inode_default,
+    inode::{InodeAttr, VfsInode},
+    superblock::VfsSuperBlock,
+    utils::{VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec},
+    VfsResult,
+};
+
+use crate::{inode::ExtFsInodeAttr, types::into_vfs, ExtFsSuperBlock, VfsRawMutex};
 
 pub struct ExtLinkInode<R: VfsRawMutex> {
     path: String,
     sb: Weak<ExtFsSuperBlock<R>>,
-    times: Mutex<R,ExtFsInodeAttr>,
+    times: Mutex<R, ExtFsInodeAttr>,
 }
 
 unsafe impl<R: VfsRawMutex> Send for ExtLinkInode<R> {}

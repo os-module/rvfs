@@ -1,12 +1,14 @@
-use ramfs::{RamFs, RamFsProvider};
-use spin::mutex::Mutex;
-use spin::Lazy;
 use std::sync::Arc;
-use vfscore::dentry::VfsDentry;
-use vfscore::fstype::VfsFsType;
-use vfscore::path::DirIter;
-use vfscore::utils::{VfsNodeType, VfsTimeSpec};
-use vfscore::VfsResult;
+
+use ramfs::{RamFs, RamFsProvider};
+use spin::{mutex::Mutex, Lazy};
+use vfscore::{
+    dentry::VfsDentry,
+    fstype::VfsFsType,
+    path::DirIter,
+    utils::{VfsNodeType, VfsTimeSpec},
+    VfsResult,
+};
 
 static FS: Lazy<Mutex<Arc<dyn VfsFsType>>> =
     Lazy::new(|| Mutex::new(Arc::new(RamFs::<_, Mutex<()>>::new(RamFsProviderImpl))));

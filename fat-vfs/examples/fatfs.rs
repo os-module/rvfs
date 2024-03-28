@@ -1,21 +1,17 @@
 #![allow(clippy::uninit_vec)]
 #![feature(seek_stream_len)]
+use std::{error::Error, io::Cursor, sync::Arc};
+
 use fat_vfs::{FatFs, FatFsProvider};
-use fatfs::FatType::Fat32;
-use fatfs::{format_volume, FormatVolumeOptions, IoBase, Read, Seek, SeekFrom, Write};
+use fatfs::{
+    format_volume, FatType::Fat32, FormatVolumeOptions, IoBase, Read, Seek, SeekFrom, Write,
+};
 use log::info;
 use spin::Mutex;
-use std::error::Error;
-use std::io::Cursor;
-use std::sync::Arc;
-use vfscore::error::VfsError;
-use vfscore::file::VfsFile;
-use vfscore::fstype::VfsFsType;
-use vfscore::inode::VfsInode;
-use vfscore::path::print_fs_tree;
-
-use vfscore::utils::*;
-use vfscore::VfsResult;
+use vfscore::{
+    error::VfsError, file::VfsFile, fstype::VfsFsType, inode::VfsInode, path::print_fs_tree,
+    utils::*, VfsResult,
+};
 
 #[derive(Clone)]
 struct ProviderImpl;

@@ -7,14 +7,15 @@ mod inode;
 
 extern crate alloc;
 
-use crate::device::FatDevice;
 use alloc::sync::Arc;
 use core::fmt::{Debug, Formatter};
+
 use fatfs::*;
+pub use fs::FatFs;
 use lock_api::Mutex;
 use vfscore::utils::VfsTimeSpec;
 
-pub use fs::FatFs;
+use crate::device::FatDevice;
 
 pub trait VfsRawMutex = lock_api::RawMutex + Send + Sync;
 

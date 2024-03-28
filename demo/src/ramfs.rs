@@ -1,9 +1,11 @@
+use std::{error::Error, sync::Arc};
+
 use log::info;
-use std::error::Error;
-use std::sync::Arc;
-use vfscore::dentry::VfsDentry;
-use vfscore::fstype::VfsFsType;
-use vfscore::utils::{VfsNodePerm, VfsNodeType, VfsTimeSpec};
+use vfscore::{
+    dentry::VfsDentry,
+    fstype::VfsFsType,
+    utils::{VfsNodePerm, VfsNodeType, VfsTimeSpec},
+};
 
 #[derive(Clone)]
 pub struct RamFsProviderImpl;
