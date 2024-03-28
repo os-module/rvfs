@@ -1,4 +1,7 @@
-use alloc::sync::{Arc, Weak};
+use alloc::{
+    string::String,
+    sync::{Arc, Weak},
+};
 
 use bitflags::bitflags;
 use downcast_rs::{impl_downcast, DowncastSync};
@@ -44,7 +47,7 @@ pub trait VfsFsType: Send + Sync + DowncastSync {
     /// Get the flags of this filesystem
     fn fs_flag(&self) -> FileSystemFlags;
     /// Get the name of this filesystem
-    fn fs_name(&self) -> &'static str;
+    fn fs_name(&self) -> String;
 }
 
 impl dyn VfsFsType {

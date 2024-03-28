@@ -1,4 +1,8 @@
-use alloc::{collections::BTreeMap, string::String, sync::Weak};
+use alloc::{
+    collections::BTreeMap,
+    string::{String, ToString},
+    sync::Weak,
+};
 
 use fatfs::FileSystem;
 use log::info;
@@ -79,8 +83,8 @@ impl<T: FatFsProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for FatFs<T
         FileSystemFlags::REQUIRES_DEV
     }
 
-    fn fs_name(&self) -> &'static str {
-        "fatfs"
+    fn fs_name(&self) -> String {
+        "fatfs".to_string()
     }
 }
 

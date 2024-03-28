@@ -8,7 +8,7 @@ extern crate alloc;
 
 use alloc::{
     collections::BTreeMap,
-    string::String,
+    string::{String, ToString},
     sync::{Arc, Weak},
 };
 use core::sync::atomic::{AtomicU64, AtomicUsize};
@@ -63,8 +63,8 @@ impl<T: Send + Sync, R: VfsRawMutex + 'static> UniFs<T, R> {
     pub fn fs_flag(&self) -> FileSystemFlags {
         FileSystemFlags::empty()
     }
-    pub fn fs_name(&self) -> &'static str {
-        self.real_fs
+    pub fn fs_name(&self) -> String {
+        self.real_fs.to_string()
     }
 }
 

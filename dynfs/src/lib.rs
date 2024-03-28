@@ -4,7 +4,7 @@ extern crate alloc;
 mod dir;
 mod file;
 
-use alloc::sync::Arc;
+use alloc::{string::String, sync::Arc};
 
 pub use dir::DynFsDirInode;
 use unifs::{
@@ -70,7 +70,7 @@ impl<T: DynFsKernelProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for D
         self.0.fs_flag()
     }
 
-    fn fs_name(&self) -> &'static str {
+    fn fs_name(&self) -> String {
         self.0.fs_name()
     }
 }

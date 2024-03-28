@@ -5,6 +5,7 @@ extern crate alloc;
 mod inode;
 
 use alloc::{
+    string::{String, ToString},
     sync::{Arc, Weak},
     vec::Vec,
 };
@@ -89,7 +90,7 @@ impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for RamFs<T
         FileSystemFlags::empty()
     }
 
-    fn fs_name(&self) -> &'static str {
-        "ramfs"
+    fn fs_name(&self) -> String {
+        "ramfs".to_string()
     }
 }

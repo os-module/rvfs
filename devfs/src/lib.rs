@@ -4,7 +4,7 @@ extern crate alloc;
 mod dev;
 mod dir;
 
-use alloc::sync::Arc;
+use alloc::{string::String, sync::Arc};
 
 use unifs::{
     inode::{UniFsInodeAttr, UniFsInodeSame},
@@ -70,7 +70,7 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for Dev
         self.0.fs_flag()
     }
 
-    fn fs_name(&self) -> &'static str {
+    fn fs_name(&self) -> String {
         self.0.fs_name()
     }
 }

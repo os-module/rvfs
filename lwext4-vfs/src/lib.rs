@@ -109,11 +109,11 @@ impl<T: ExtDevProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for ExtFs<
         FileSystemFlags::REQUIRES_DEV
     }
 
-    fn fs_name(&self) -> &'static str {
+    fn fs_name(&self) -> String {
         match self.ty {
-            FsType::Ext2 => "ext2",
-            FsType::Ext3 => "ext3",
-            FsType::Ext4 => "ext4",
+            FsType::Ext2 => "ext2".to_string(),
+            FsType::Ext3 => "ext3".to_string(),
+            FsType::Ext4 => "ext4".to_string(),
         }
     }
 }
