@@ -2,17 +2,21 @@ mod dir;
 mod file;
 mod symlink;
 
-use super::VfsRawMutex;
-use crate::RamFsProvider;
-use alloc::collections::BTreeMap;
-use alloc::string::String;
-use alloc::sync::Arc;
+use alloc::{collections::BTreeMap, string::String, sync::Arc};
+
 pub use dir::RamFsDirInode;
 pub use file::RamFsFileInode;
-use unifs::inode::{UniFsInodeAttr, UniFsInodeSame};
-use unifs::UniFsSuperBlock;
-use vfscore::inode::InodeAttr;
-use vfscore::utils::{VfsFileStat, VfsNodePerm};
+use unifs::{
+    inode::{UniFsInodeAttr, UniFsInodeSame},
+    UniFsSuperBlock,
+};
+use vfscore::{
+    inode::InodeAttr,
+    utils::{VfsFileStat, VfsNodePerm},
+};
+
+use super::VfsRawMutex;
+use crate::RamFsProvider;
 
 trait RamFsInodeSameNew<T: Send + Sync, R: VfsRawMutex> {
     fn new(sb: &Arc<UniFsSuperBlock<R>>, provider: T, inode_number: u64, perm: VfsNodePerm)

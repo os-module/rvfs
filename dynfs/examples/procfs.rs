@@ -1,17 +1,11 @@
+use std::{cmp::min, error::Error, sync::Arc};
+
 use dynfs::{DynFs, DynFsDirInode, DynFsKernelProvider};
-
 use spin::Mutex;
-use std::cmp::min;
-use std::error::Error;
-use std::sync::Arc;
-use vfscore::error::VfsError;
-use vfscore::file::VfsFile;
-use vfscore::fstype::VfsFsType;
-use vfscore::inode::VfsInode;
-use vfscore::path::DirIter;
-
-use vfscore::utils::*;
-use vfscore::VfsResult;
+use vfscore::{
+    error::VfsError, file::VfsFile, fstype::VfsFsType, inode::VfsInode, path::DirIter, utils::*,
+    VfsResult,
+};
 
 #[derive(Clone)]
 struct DynFsKernelProviderImpl;

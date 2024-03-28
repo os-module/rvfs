@@ -1,7 +1,10 @@
-use crate::error::VfsError;
-use crate::utils::{VfsDirEntry, VfsPollEvents};
-use crate::VfsResult;
 use downcast_rs::{impl_downcast, DowncastSync};
+
+use crate::{
+    error::VfsError,
+    utils::{VfsDirEntry, VfsPollEvents},
+    VfsResult,
+};
 
 pub trait VfsFile: Send + Sync + DowncastSync {
     fn read_at(&self, _offset: u64, _buf: &mut [u8]) -> VfsResult<usize> {

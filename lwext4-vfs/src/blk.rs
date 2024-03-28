@@ -1,8 +1,9 @@
-use crate::types::from_vfs;
 use alloc::sync::Arc;
+
 use lwext4_rs::{BlockDeviceConfig, BlockDeviceInterface};
-use vfscore::inode::VfsInode;
-use vfscore::VfsResult;
+use vfscore::{inode::VfsInode, VfsResult};
+
+use crate::types::from_vfs;
 
 #[derive(Clone)]
 pub struct ExtDevice {

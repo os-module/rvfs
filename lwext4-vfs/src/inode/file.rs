@@ -1,25 +1,30 @@
-use alloc::vec;
-use crate::types::into_vfs;
-use crate::{ExtFsSuperBlock, VfsRawMutex};
-use alloc::string::String;
-use alloc::sync::{Arc, Weak};
-use alloc::vec::Vec;
+use alloc::{
+    string::String,
+    sync::{Arc, Weak},
+    vec,
+    vec::Vec,
+};
+
 use embedded_io::{Read, Seek, SeekFrom, Write};
 use lock_api::Mutex;
 use log::info;
 use lwext4_rs::{File, FileTimes, MetaDataExt, Time};
-use vfscore::error::VfsError;
-use vfscore::file::VfsFile;
-use vfscore::inode::{InodeAttr, VfsInode};
-use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec};
-use vfscore::{impl_file_inode_default, VfsResult};
-use crate::inode::ExtFsInodeAttr;
+use vfscore::{
+    error::VfsError,
+    file::VfsFile,
+    impl_file_inode_default,
+    inode::{InodeAttr, VfsInode},
+    superblock::VfsSuperBlock,
+    utils::{VfsFileStat, VfsNodePerm, VfsNodeType, VfsRenameFlag, VfsTime, VfsTimeSpec},
+    VfsResult,
+};
+
+use crate::{inode::ExtFsInodeAttr, types::into_vfs, ExtFsSuperBlock, VfsRawMutex};
 
 pub struct ExtFileInode<R: VfsRawMutex> {
     file: Mutex<R, File>,
     sb: Weak<ExtFsSuperBlock<R>>,
-    times: Mutex<R,ExtFsInodeAttr>,
+    times: Mutex<R, ExtFsInodeAttr>,
 }
 
 unsafe impl<R: VfsRawMutex> Send for ExtFileInode<R> {}
@@ -51,8 +56,7 @@ impl<R: VfsRawMutex + 'static> VfsFile for ExtFileInode<R> {
         let file_size = file.metadata().map_err(into_vfs)?.size();
         if file_size < offset {
             let empty = vec![0; (offset - file_size) as usize];
-            file.seek(SeekFrom::Start(file_size))
-                .map_err(into_vfs)?;
+            file.seek(SeekFrom::Start(file_size)).map_err(into_vfs)?;
             file.write_all(&empty).map_err(into_vfs)?;
         }
         if file.stream_position().map_err(into_vfs)? != offset {

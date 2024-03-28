@@ -6,19 +6,25 @@ pub mod inode;
 
 extern crate alloc;
 
-use crate::dentry::UniFsDentry;
-use alloc::collections::BTreeMap;
-use alloc::string::String;
-use alloc::sync::{Arc, Weak};
+use alloc::{
+    collections::BTreeMap,
+    string::{String, ToString},
+    sync::{Arc, Weak},
+};
 use core::sync::atomic::{AtomicU64, AtomicUsize};
+
 use log::info;
-use vfscore::dentry::VfsDentry;
-use vfscore::error::VfsError;
-use vfscore::fstype::{FileSystemFlags, VfsFsType};
-use vfscore::inode::VfsInode;
-use vfscore::superblock::{SuperType, VfsSuperBlock};
-use vfscore::utils::{VfsFsStat, VfsTimeSpec};
-use vfscore::VfsResult;
+use vfscore::{
+    dentry::VfsDentry,
+    error::VfsError,
+    fstype::{FileSystemFlags, VfsFsType},
+    inode::VfsInode,
+    superblock::{SuperType, VfsSuperBlock},
+    utils::{VfsFsStat, VfsTimeSpec},
+    VfsResult,
+};
+
+use crate::dentry::UniFsDentry;
 
 pub trait VfsRawMutex = lock_api::RawMutex + Send + Sync;
 pub struct UniFs<T: Send + Sync, R: VfsRawMutex> {
@@ -57,8 +63,8 @@ impl<T: Send + Sync, R: VfsRawMutex + 'static> UniFs<T, R> {
     pub fn fs_flag(&self) -> FileSystemFlags {
         FileSystemFlags::empty()
     }
-    pub fn fs_name(&self) -> &'static str {
-        self.real_fs
+    pub fn fs_name(&self) -> String {
+        self.real_fs.to_string()
     }
 }
 

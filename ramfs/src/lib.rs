@@ -4,19 +4,24 @@ extern crate alloc;
 
 mod inode;
 
-use alloc::sync::{Arc, Weak};
-use alloc::vec::Vec;
+use alloc::{
+    string::{String, ToString},
+    sync::{Arc, Weak},
+    vec::Vec,
+};
+
 pub use inode::*;
 use log::info;
-use unifs::dentry::UniFsDentry;
-use unifs::*;
-use vfscore::dentry::VfsDentry;
-use vfscore::error::VfsError;
-use vfscore::fstype::{FileSystemFlags, VfsFsType};
-use vfscore::inode::VfsInode;
-use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{VfsNodePerm, VfsTimeSpec};
-use vfscore::VfsResult;
+use unifs::{dentry::UniFsDentry, *};
+use vfscore::{
+    dentry::VfsDentry,
+    error::VfsError,
+    fstype::{FileSystemFlags, VfsFsType},
+    inode::VfsInode,
+    superblock::VfsSuperBlock,
+    utils::{VfsNodePerm, VfsTimeSpec},
+    VfsResult,
+};
 
 pub trait RamFsProvider: Send + Sync + Clone {
     fn current_time(&self) -> VfsTimeSpec;
@@ -85,7 +90,7 @@ impl<T: RamFsProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for RamFs<T
         FileSystemFlags::empty()
     }
 
-    fn fs_name(&self) -> &'static str {
-        "ramfs"
+    fn fs_name(&self) -> String {
+        "ramfs".to_string()
     }
 }

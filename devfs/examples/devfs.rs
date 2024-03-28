@@ -1,15 +1,16 @@
+use std::{error::Error, sync::Arc};
+
 use devfs::{DevFs, DevKernelProvider};
 use log::error;
 use spin::Mutex;
-use std::error::Error;
-use std::sync::Arc;
-use vfscore::file::VfsFile;
-use vfscore::fstype::VfsFsType;
-use vfscore::inode::{InodeAttr, VfsInode};
-use vfscore::path::DirIter;
-
-use vfscore::utils::*;
-use vfscore::VfsResult;
+use vfscore::{
+    file::VfsFile,
+    fstype::VfsFsType,
+    inode::{InodeAttr, VfsInode},
+    path::DirIter,
+    utils::*,
+    VfsResult,
+};
 
 #[derive(Clone)]
 struct DevFsKernelProviderImpl;
@@ -101,7 +102,7 @@ impl VfsInode for NullDev {
     }
 
     fn get_attr(&self) -> VfsResult<VfsFileStat> {
-        Ok(VfsFileStat{
+        Ok(VfsFileStat {
             st_blksize: 512,
             st_rdev: 0,
             st_size: 0,

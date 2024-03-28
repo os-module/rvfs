@@ -1,11 +1,9 @@
-use crate::fstype::VfsMountPoint;
-use crate::inode::VfsInode;
-use crate::VfsResult;
-use alloc::string::String;
-use alloc::sync::Arc;
+use alloc::{string::String, sync::Arc};
 
 use downcast_rs::{impl_downcast, DowncastSync};
 use log::warn;
+
+use crate::{fstype::VfsMountPoint, inode::VfsInode, VfsResult};
 
 pub trait VfsDentry: Send + Sync + DowncastSync {
     /// Return the name of this dentry

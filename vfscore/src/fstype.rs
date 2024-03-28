@@ -1,10 +1,12 @@
-use crate::dentry::VfsDentry;
-use crate::inode::VfsInode;
-use crate::superblock::VfsSuperBlock;
-use crate::VfsResult;
-use alloc::sync::{Arc, Weak};
+use alloc::{
+    string::String,
+    sync::{Arc, Weak},
+};
+
 use bitflags::bitflags;
 use downcast_rs::{impl_downcast, DowncastSync};
+
+use crate::{dentry::VfsDentry, inode::VfsInode, superblock::VfsSuperBlock, VfsResult};
 bitflags! {
     pub struct FileSystemFlags:u32{
          /// The file system requires a device.
@@ -45,7 +47,7 @@ pub trait VfsFsType: Send + Sync + DowncastSync {
     /// Get the flags of this filesystem
     fn fs_flag(&self) -> FileSystemFlags;
     /// Get the name of this filesystem
-    fn fs_name(&self) -> &'static str;
+    fn fs_name(&self) -> String;
 }
 
 impl dyn VfsFsType {

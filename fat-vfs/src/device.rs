@@ -1,6 +1,6 @@
 use alloc::sync::Arc;
-use fatfs::*;
 
+use fatfs::*;
 use vfscore::inode::VfsInode;
 
 #[derive(Clone)]

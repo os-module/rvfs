@@ -1,9 +1,10 @@
-use alloc::format;
-use alloc::string::{String, ToString};
+use alloc::{
+    format,
+    string::{String, ToString},
+};
+
 use lwext4_rs::{Error, FileType};
-use vfscore::error::VfsError;
-use vfscore::utils::VfsNodeType;
-use vfscore::VfsResult;
+use vfscore::{error::VfsError, utils::VfsNodeType, VfsResult};
 
 pub fn from_vfs(err: VfsError) -> Error {
     match err {

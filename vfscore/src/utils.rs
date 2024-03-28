@@ -1,4 +1,5 @@
 use alloc::string::String;
+
 use bitflags::bitflags;
 bitflags! {
     pub struct VfsInodeMode: u32 {
@@ -73,6 +74,22 @@ pub enum VfsNodeType {
     SymLink = 0o12,
     /// Socket
     Socket = 0o14,
+}
+
+impl From<u8> for VfsNodeType {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Unknown,
+            0o1 => Self::Fifo,
+            0o2 => Self::CharDevice,
+            0o4 => Self::Dir,
+            0o6 => Self::BlockDevice,
+            0o10 => Self::File,
+            0o12 => Self::SymLink,
+            0o14 => Self::Socket,
+            _ => Self::Unknown,
+        }
+    }
 }
 
 impl From<char> for VfsNodeType {
@@ -339,6 +356,7 @@ impl VfsTimeSpec {
     }
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum VfsTime {
     AccessTime(VfsTimeSpec),
     ModifiedTime(VfsTimeSpec),
@@ -371,6 +389,25 @@ pub struct VfsFsStat {
     pub f_flags: isize,
     /// 空余 padding
     pub f_spare: [isize; 4],
+}
+
+impl Default for VfsFsStat {
+    fn default() -> Self {
+        Self {
+            f_type: 0,
+            f_bsize: 0,
+            f_blocks: 0,
+            f_bfree: 0,
+            f_bavail: 0,
+            f_files: 0,
+            f_ffree: 0,
+            f_fsid: [0, 0],
+            f_namelen: 0,
+            f_frsize: 0,
+            f_flags: 0,
+            f_spare: [0; 4],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]

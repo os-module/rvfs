@@ -1,5 +1,7 @@
-use core::error::Error;
-use core::fmt::{Debug, Display, Formatter};
+use core::{
+    error::Error,
+    fmt::{Debug, Display, Formatter},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VfsError {
@@ -119,6 +121,35 @@ impl From<VfsError> for i32 {
         value as i32
     }
 }
+
+impl From<i32> for VfsError {
+    fn from(value: i32) -> Self {
+        match value {
+            1 => VfsError::PermissionDenied,
+            2 => VfsError::NoEntry,
+            4 => VfsError::EINTR,
+            5 => VfsError::IoError,
+            11 => VfsError::EAGAIN,
+            12 => VfsError::NoMem,
+            13 => VfsError::Access,
+            16 => VfsError::EBUSY,
+            17 => VfsError::EExist,
+            20 => VfsError::NotDir,
+            22 => VfsError::Invalid,
+            19 => VfsError::NoDev,
+            21 => VfsError::IsDir,
+            25 => VfsError::NoTTY,
+            28 => VfsError::NoSpace,
+            29 => VfsError::ESPIPE,
+            32 => VfsError::EPIPE,
+            36 => VfsError::NameTooLong,
+            38 => VfsError::NoSys,
+            39 => VfsError::NotEmpty,
+            _ => VfsError::Invalid,
+        }
+    }
+}
+
 #[cfg(feature = "linux_error")]
 impl From<VfsError> for pconst::LinuxErrno {
     fn from(value: VfsError) -> Self {

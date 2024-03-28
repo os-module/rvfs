@@ -1,22 +1,22 @@
-use crate::fstype::VfsFsType;
-use crate::inode::VfsInode;
-use crate::utils::VfsFsStat;
-use crate::VfsResult;
 use alloc::sync::Arc;
+
 use downcast_rs::{impl_downcast, DowncastSync};
 
+use crate::{fstype::VfsFsType, inode::VfsInode, utils::VfsFsStat, VfsResult};
+
 /// Type of superblock keying.
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum SuperType {
     /// Only one such superblock may exist.
-    Single,
+    Single = 1,
     /// As [`Super::Single`], but reconfigure if it exists.
-    SingleReconf,
+    SingleReconf = 2,
     /// Superblocks with different data pointers may exist.
-    Keyed,
+    Keyed = 3,
     /// Multiple independent superblocks may exist.
-    Independent,
+    Independent = 4,
     /// Uses a block device.
-    BlockDev,
+    BlockDev = 5,
 }
 pub trait VfsSuperBlock: Send + Sync + DowncastSync {
     /// Determines how superblocks for this file system type are keyed.

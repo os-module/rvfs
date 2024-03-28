@@ -4,17 +4,22 @@ extern crate alloc;
 mod dev;
 mod dir;
 
-use crate::dir::DevFsDirInode;
-use alloc::sync::Arc;
+use alloc::{string::String, sync::Arc};
 
-use unifs::inode::{UniFsInodeAttr, UniFsInodeSame};
-use unifs::{UniFs, UniFsSuperBlock, VfsRawMutex};
-use vfscore::dentry::VfsDentry;
-use vfscore::fstype::{FileSystemFlags, VfsFsType};
-use vfscore::inode::VfsInode;
-use vfscore::superblock::VfsSuperBlock;
-use vfscore::utils::{VfsNodePerm, VfsTimeSpec};
-use vfscore::VfsResult;
+use unifs::{
+    inode::{UniFsInodeAttr, UniFsInodeSame},
+    UniFs, UniFsSuperBlock, VfsRawMutex,
+};
+use vfscore::{
+    dentry::VfsDentry,
+    fstype::{FileSystemFlags, VfsFsType},
+    inode::VfsInode,
+    superblock::VfsSuperBlock,
+    utils::{VfsNodePerm, VfsTimeSpec},
+    VfsResult,
+};
+
+use crate::dir::DevFsDirInode;
 
 pub trait DevKernelProvider: Send + Sync + Clone {
     fn current_time(&self) -> VfsTimeSpec;
@@ -65,7 +70,7 @@ impl<T: DevKernelProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for Dev
         self.0.fs_flag()
     }
 
-    fn fs_name(&self) -> &'static str {
+    fn fs_name(&self) -> String {
         self.0.fs_name()
     }
 }

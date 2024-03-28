@@ -1,20 +1,23 @@
-use std::error::Error;
-use std::fs::{File, OpenOptions};
-use std::io::{Seek};
+use std::{
+    error::Error,
+    fs::{File, OpenOptions},
+    io::Seek,
+    sync::Arc,
+};
 
-use std::sync::Arc;
 use log::info;
 use lwext4_rs::{BlockDeviceConfig, DefaultInterface, FsBuilder, FsType};
-use spin::Mutex;
 use lwext4_vfs::ExtDevProvider;
-
-use vfscore::dentry::VfsDentry;
-use vfscore::error::VfsError;
-use vfscore::file::VfsFile;
-use vfscore::fstype::VfsFsType;
-use vfscore::inode::VfsInode;
-use vfscore::utils::{VfsFileStat, VfsNodePerm, VfsNodeType, VfsTimeSpec};
-use vfscore::VfsResult;
+use spin::Mutex;
+use vfscore::{
+    dentry::VfsDentry,
+    error::VfsError,
+    file::VfsFile,
+    fstype::VfsFsType,
+    inode::VfsInode,
+    utils::{VfsFileStat, VfsNodePerm, VfsNodeType, VfsTimeSpec},
+    VfsResult,
+};
 
 pub struct ExtFsProviderImpl;
 impl ExtDevProvider for ExtFsProviderImpl {
@@ -23,15 +26,19 @@ impl ExtDevProvider for ExtFsProviderImpl {
     }
 }
 
-
-pub fn init_extfs(extfs: Arc<dyn VfsFsType>) -> Result<Arc<dyn VfsDentry>, Box<dyn Error>>{
+pub fn init_extfs(extfs: Arc<dyn VfsFsType>) -> Result<Arc<dyn VfsDentry>, Box<dyn Error>> {
     mkfs();
     let file = OpenOptions::new()
         .read(true)
         .write(true)
         .open("/tmp/ext_image")
         .unwrap();
-    let root_dt = extfs.i_mount(0, "/", Some(Arc::new(DeviceInode::new(Arc::new(Mutex::new(file))))), &[])?;
+    let root_dt = extfs.i_mount(
+        0,
+        "/",
+        Some(Arc::new(DeviceInode::new(Arc::new(Mutex::new(file))))),
+        &[],
+    )?;
     let root_inode = root_dt.inode()?;
     let _f1 = root_inode.create(
         "f1.txt",
@@ -68,12 +75,12 @@ pub fn init_extfs(extfs: Arc<dyn VfsFsType>) -> Result<Arc<dyn VfsDentry>, Box<d
     ├── d2
     ├── f1.txt
     └── f2.txt
-        ");
+        "
+    );
     Ok(root_dt)
 }
 
-
-fn mkfs(){
+fn mkfs() {
     let file = OpenOptions::new()
         .read(true)
         .write(true)
@@ -98,7 +105,6 @@ fn mkfs(){
         .unwrap();
     println!("{:#x?}", fs.fs_info());
 }
-
 
 struct DeviceInode {
     file: Arc<Mutex<File>>,

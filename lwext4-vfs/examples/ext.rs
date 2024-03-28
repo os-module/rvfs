@@ -1,23 +1,28 @@
 #![feature(seek_stream_len)]
 
+use std::{
+    error::Error,
+    fs::{File, OpenOptions},
+    io::Seek,
+    sync::Arc,
+};
+
+use embedded_io::{Read, SeekFrom, Write};
 use log::info;
 use lwext4_rs::{
     BlockDeviceConfig, DefaultInterface, FileSystem, FsBuilder, FsType, MountHandle, RegisterHandle,
 };
 use lwext4_vfs::{ExtDevProvider, ExtFs, ExtFsType};
 use spin::Mutex;
-use std::error::Error;
-use std::fs::{File, OpenOptions};
-use std::io::Seek;
-use std::sync::Arc;
-use embedded_io::{Read, SeekFrom, Write};
-use vfscore::error::VfsError;
-use vfscore::file::VfsFile;
-use vfscore::fstype::VfsFsType;
-use vfscore::inode::VfsInode;
-use vfscore::path::{DirIter, VfsPath};
-use vfscore::utils::{VfsFileStat, VfsNodePerm, VfsNodeType, VfsTime, VfsTimeSpec};
-use vfscore::VfsResult;
+use vfscore::{
+    error::VfsError,
+    file::VfsFile,
+    fstype::VfsFsType,
+    inode::VfsInode,
+    path::{DirIter, VfsPath},
+    utils::{VfsFileStat, VfsNodePerm, VfsNodeType, VfsTime, VfsTimeSpec},
+    VfsResult,
+};
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
@@ -42,7 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .unwrap();
     info!("ramfs tree:");
     // print_fs_tree(&mut OutPut, root.clone(), "".to_string(), true).unwrap();
-    let path = VfsPath::new(root.clone(),root.clone());
+    let path = VfsPath::new(root.clone(), root.clone());
     let dir1_path = path.join("dir").unwrap();
     let dir1 = dir1_path.open(None)?;
     dir1.inode()?.children().for_each(|e| {
@@ -50,7 +55,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     });
     dir1.inode()?.unlink("f1")?;
     dir1.inode()?.symlink("f1", "/dir/f2")?;
-    let f4 = dir1.inode()?.create("f4",VfsNodeType::File,VfsNodePerm::from_bits_truncate(0o777),None)?;
+    let f4 = dir1.inode()?.create(
+        "f4",
+        VfsNodeType::File,
+        VfsNodePerm::from_bits_truncate(0o777),
+        None,
+    )?;
     dir1.inode()?.link("f5", f4)?;
     dir1.inode()?.children().for_each(|e| {
         println!("{:?}", e);
@@ -59,18 +69,26 @@ fn main() -> Result<(), Box<dyn Error>> {
     let f3_path = path.join("f3").unwrap();
     let f3 = f3_path.open(None)?;
     let mut buf = [0u8; 512];
-    let r = f3.inode()?.read_at(0,&mut buf)?;
+    let r = f3.inode()?.read_at(0, &mut buf)?;
     assert_eq!(r, 11);
     assert_eq!(&buf[..r], b"hello world");
     println!("read: {}", std::str::from_utf8(&buf[..r]).unwrap());
-    let data = [0x55u8;512];
-    let w = f3.inode()?.write_at(0,&data)?;
+    let data = [0x55u8; 512];
+    let w = f3.inode()?.write_at(0, &data)?;
     assert_eq!(w, 512);
-    f3.inode()?.update_time(VfsTime::AccessTime(VfsTimeSpec::new(1,1)),VfsTimeSpec::new(1,1))?;
+    f3.inode()?.update_time(
+        VfsTime::AccessTime(VfsTimeSpec::new(1, 1)),
+        VfsTimeSpec::new(1, 1),
+    )?;
     let attr = f3.inode()?.get_attr()?;
     println!("{:#x?}", attr);
 
-    let f6 = dir1.inode()?.create("f6",VfsNodeType::File,VfsNodePerm::from_bits_truncate(0o777),None)?;
+    let f6 = dir1.inode()?.create(
+        "f6",
+        VfsNodeType::File,
+        VfsNodePerm::from_bits_truncate(0o777),
+        None,
+    )?;
     let buf = [0u8; 1024];
     let w = f6.write_at(10, &buf)?;
     assert_eq!(w, 1024);
@@ -145,7 +163,8 @@ fn mkfs() {
         .create(true)
         .open("/dir/f2")
         .unwrap();
-    let mut file = fs.file_builder()
+    let mut file = fs
+        .file_builder()
         .read(true)
         .write(true)
         .create(true)

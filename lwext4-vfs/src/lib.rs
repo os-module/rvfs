@@ -8,30 +8,36 @@ mod types;
 
 extern crate alloc;
 
-use crate::blk::ExtDevice;
-use crate::inode::dir::ExtDirInode;
-use crate::types::{into_vfs, ToDir};
-use alloc::collections::BTreeMap;
-use alloc::string::{String, ToString};
-use alloc::sync::{Arc, Weak};
-use lock_api::Mutex;
-use log::info;
-use lwext4_rs::{BlockDevice, FsType, MountHandle, RegisterHandle};
-use unifs::dentry::UniFsDentry;
-use vfscore::dentry::VfsDentry;
-use vfscore::error::VfsError;
-use vfscore::fstype::{FileSystemFlags, VfsFsType};
-use vfscore::inode::VfsInode;
-use vfscore::superblock::{SuperType, VfsSuperBlock};
-use vfscore::utils::{VfsFsStat, VfsNodeType};
-use vfscore::VfsResult;
+use alloc::{
+    collections::BTreeMap,
+    string::{String, ToString},
+    sync::{Arc, Weak},
+};
 
 pub use inode::special::ExtDevProvider;
+use lock_api::Mutex;
+use log::info;
 pub use lwext4_rs::FsType as ExtFsType;
+use lwext4_rs::{BlockDevice, FsType, MountHandle, RegisterHandle};
+use unifs::dentry::UniFsDentry;
+use vfscore::{
+    dentry::VfsDentry,
+    error::VfsError,
+    fstype::{FileSystemFlags, VfsFsType},
+    inode::VfsInode,
+    superblock::{SuperType, VfsSuperBlock},
+    utils::{VfsFsStat, VfsNodeType},
+    VfsResult,
+};
+
+use crate::{
+    blk::ExtDevice,
+    inode::dir::ExtDirInode,
+    types::{into_vfs, ToDir},
+};
 pub trait VfsRawMutex = lock_api::RawMutex + Send + Sync;
 
 type FileSystem = lwext4_rs::FileSystem<ExtDevice>;
-
 
 pub struct ExtFs<T, R: VfsRawMutex> {
     ty: ExtFsType,
@@ -103,11 +109,11 @@ impl<T: ExtDevProvider + 'static, R: VfsRawMutex + 'static> VfsFsType for ExtFs<
         FileSystemFlags::REQUIRES_DEV
     }
 
-    fn fs_name(&self) -> &'static str {
+    fn fs_name(&self) -> String {
         match self.ty {
-            FsType::Ext2 => "ext2",
-            FsType::Ext3 => "ext3",
-            FsType::Ext4 => "ext4",
+            FsType::Ext2 => "ext2".to_string(),
+            FsType::Ext3 => "ext3".to_string(),
+            FsType::Ext4 => "ext4".to_string(),
         }
     }
 }
