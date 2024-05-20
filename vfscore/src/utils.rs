@@ -1,6 +1,8 @@
 use alloc::string::String;
 
 use bitflags::bitflags;
+#[cfg(feature = "linux_error")]
+use pconst::io::FileStat;
 bitflags! {
     pub struct VfsInodeMode: u32 {
         /// Type
@@ -430,6 +432,33 @@ pub struct VfsFileStat {
     pub st_ctime: VfsTimeSpec,
     pub unused: u64,
 } //128
+
+#[cfg(feature = "linux_error")]
+impl From<VfsFileStat> for FileStat {
+    fn from(value: VfsFileStat) -> Self {
+        Self {
+            st_dev: value.st_dev,
+            st_ino: value.st_ino,
+            st_mode: value.st_mode,
+            st_nlink: value.st_nlink,
+            st_uid: value.st_uid,
+            st_gid: value.st_gid,
+            st_rdev: value.st_rdev,
+            __pad: 0,
+            st_size: value.st_size,
+            st_blksize: value.st_blksize,
+            __pad2: 0,
+            st_blocks: value.st_blocks,
+            st_atime_sec: value.st_atime.sec,
+            st_atime_nsec: value.st_atime.nsec,
+            st_mtime_sec: value.st_mtime.sec,
+            st_mtime_nsec: value.st_mtime.nsec,
+            st_ctime_sec: value.st_ctime.nsec,
+            st_ctime_nsec: value.st_ctime.nsec,
+            unused: 0,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct VfsDirEntry {

@@ -23,15 +23,10 @@ pub trait FatFsProvider: Send + Sync + Clone {
     fn current_time(&self) -> VfsTimeSpec;
 }
 
+#[allow(unused)]
 #[derive(Clone)]
 struct TimeProviderImpl<T> {
     provider: T,
-}
-
-impl<T: FatFsProvider> TimeProviderImpl<T> {
-    // pub fn new(provider: T) -> Self {
-    //     Self { provider }
-    // }
 }
 
 impl<T: FatFsProvider> Debug for TimeProviderImpl<T> {

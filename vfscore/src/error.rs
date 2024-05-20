@@ -157,6 +157,13 @@ impl From<VfsError> for pconst::LinuxErrno {
             .unwrap_or(pconst::LinuxErrno::EINVAL)
     }
 }
+#[cfg(feature = "linux_error")]
+impl From<pconst::LinuxErrno> for VfsError {
+    fn from(value: pconst::LinuxErrno) -> Self {
+        let code = -(value as i32);
+        VfsError::from(code)
+    }
+}
 
 #[cfg(test)]
 mod tests {
