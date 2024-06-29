@@ -38,6 +38,19 @@ impl<R: VfsRawMutex + 'static> UniFsDentry<R> {
             }),
         }
     }
+
+    pub fn new(inode: Arc<dyn VfsInode>, parent: Weak<dyn VfsDentry>, name: String) -> Self {
+        Self {
+            inner: lock_api::Mutex::new(UniFsDentryInner {
+                parent,
+                inode,
+                name,
+                mnt: None,
+                children: None,
+            }),
+        }
+    }
+
 }
 
 impl<R: VfsRawMutex + 'static> VfsDentry for UniFsDentry<R> {
