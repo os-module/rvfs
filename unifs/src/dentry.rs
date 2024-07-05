@@ -50,7 +50,6 @@ impl<R: VfsRawMutex + 'static> UniFsDentry<R> {
             }),
         }
     }
-
 }
 
 impl<R: VfsRawMutex + 'static> VfsDentry for UniFsDentry<R> {
