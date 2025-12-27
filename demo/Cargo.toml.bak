@@ -10,9 +10,9 @@ devfs = { path = "../devfs" }
 ramfs = { path = "../ramfs" }
 dynfs = { path = "../dynfs" }
 vfscore = { path = "../vfscore" ,features = ["linux_error"] }
-# lwext4-vfs = { path = "../lwext4-vfs" }
+lwext4-vfs = { path = "../lwext4-vfs" }
 dbfs-vfs = { path = "../dbfs-vfs" }
-# lwext4-rs = { git = "https://github.com/os-module/lwext4" }
+lwext4-rs = { git = "https://github.com/os-module/lwext4" }
 pconst = { git = "https://github.com/os-module/pconst.git" }
 log = "0.4.14"
 spin = "0"

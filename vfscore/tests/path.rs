@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use ramfs::{RamFs, RamFsProvider};
+use dbfs_vfs::{DBFS, DBFSProvider};
+use jammdb::DB;
 use spin::{Lazy, Mutex};
 use vfscore::{
     dentry::VfsDentry,
@@ -99,3 +101,31 @@ fn test_unlink() {}
 
 #[test]
 fn test_rename() {}
+
+#[test]
+fn test_dbfs_integration() {
+    // 测试DBFS与VfsCore的集成
+    let dbfs = DBFS::new("test_db_for_vfscore");
+    let root = dbfs.i_mount(0, "/", None, &[]).expect("Failed to mount DBFS");
+    
+    // 测试基本文件操作
+    let inode = root.inode().unwrap();
+    
+    // 创建文件
+    let file = inode.create("test.txt", VfsNodeType::File, "rw-rw-rw-".into(), None).unwrap();
+    
+    // 写入数据
+    let write_result = file.write_at(0, b"Hello from DBFS via VfsCore!");
+    assert!(write_result.is_ok());
+    
+    // 读取数据
+    let mut buf = [0u8; 100];
+    let read_result = file.read_at(0, &mut buf);
+    assert!(read_result.is_ok());
+    
+    let len = read_result.unwrap();
+    let content = std::str::from_utf8(&buf[..len]).unwrap();
+    assert_eq!(content, "Hello from DBFS via VfsCore!");
+    
+    println!("DBFS integration with VfsCore test passed!");
+}
