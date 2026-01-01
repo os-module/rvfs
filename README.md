@@ -23,12 +23,12 @@ RUST_LOG=info cargo run -p demo
 
 ## Usage
 ```
-devfs = { git = "https://github.com/os-module/rvfs" }
-ramfs = { git = "https://github.com/os-module/rvfs" }
-dynfs = { git = "https://github.com/os-module/rvfs" }
-fat-vfs = { git = "https://github.com/os-module/rvfs" }
-lwext-vfs = { git = "https://github.com/os-module/rvfs" }
-vfscore = { git = "https://github.com/os-module/rvfs" }
+devfs = { git = "https://github.com/nusakom/rvfs" }
+ramfs = { git = "https://github.com/nusakom/rvfs" }
+dynfs = { git = "https://github.com/nusakom/rvfs" }
+fat-vfs = { git = "https://github.com/nusakom/rvfs" }
+lwext-vfs = { git = "https://github.com/nusakom/rvfs" }
+vfscore = { git = "https://github.com/nusakom/rvfs" }
 ```
 ```rust
 // create a fs_type
