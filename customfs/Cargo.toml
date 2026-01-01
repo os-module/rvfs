@@ -8,8 +8,8 @@ edition = "2021"
 [dependencies]
 lock_api = { version = "0",default-features = false }
 log = "0.4.14"
-unifs = { git = "https://github.com/nusakom/rvfs.git" }
-vfscore = { git = "https://github.com/nusakom/rvfs.git", features = ["linux_error"] }
+unifs = { git = "git@github.com:nusakom/rvfs.git" }
+vfscore = { git = "git@github.com:nusakom/rvfs.git", features = ["linux_error"] }
 [dev-dependencies]
 spin = "0"
 env_logger = "0.9"

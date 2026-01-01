@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 bitflags = "1.3.2"
-lwext4-rs = { git = "https://github.com/nusakom/lwext4", default-features = false }
+lwext4-rs = { git = "git@github.com:nusakom/lwext4", default-features = false }
 lock_api = { version = "0",default-features = false }
 vfscore = { path = "../vfscore" }
 unifs = { path = "../unifs" }
@@ -18,4 +18,4 @@ embedded-io = "0.6"
 [dev-dependencies]
 spin = "0"
 env_logger = "0.9"
-lwext4-rs = { git = "https://github.com/nusakom/lwext4" }
+lwext4-rs = { git = "git@github.com:nusakom/lwext4" }
